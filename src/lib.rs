@@ -78,6 +78,7 @@ pub struct Subcommand {
     artifacts: Vec<Artifact>,
     profile: Profile,
     target_dir: PathBuf,
+    quiet: bool,
 }
 
 impl Subcommand {
@@ -104,6 +105,7 @@ impl Subcommand {
         let mut package = None;
         let mut examples = false;
         let mut bins = false;
+        let mut quiet = false;
         while let Some(name) = args.next() {
             let value = if let Some(value) = args.peek() {
                 if !value.starts_with("-") {
@@ -117,6 +119,7 @@ impl Subcommand {
             let value_ref = value.as_ref().map(|s| &**s);
             let mut matched = true;
             match (name.as_str(), value_ref) {
+                ("--quiet", None) => quiet = true,
                 ("--release", None) => profile = Profile::Release,
                 ("--target", Some(value)) => target = Some(value.to_string()),
                 ("--profile", Some("dev")) => profile = Profile::Dev,
@@ -175,6 +178,7 @@ impl Subcommand {
             profile,
             artifacts,
             target_dir,
+            quiet,
         })
     }
 
@@ -212,6 +216,10 @@ impl Subcommand {
 
     pub fn host_triple(&self) -> &str {
         &self.host_triple
+    }
+
+    pub fn quiet(&self) -> bool {
+        self.quiet
     }
 }
 
