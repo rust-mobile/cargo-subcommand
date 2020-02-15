@@ -81,8 +81,11 @@ pub struct Subcommand {
 }
 
 impl Subcommand {
-    pub fn new(subcommand: &'static str) -> Result<Self, Error> {
-        let mut args = std::env::args();
+    pub fn new<F: FnMut(&str, Option<&str>) -> Result<bool, Error>>(
+        subcommand: &'static str,
+        mut parser: F,
+    ) -> Result<Self, Error> {
+        let mut args = std::env::args().peekable();
         let arg = args.next().ok_or(Error::InvalidArgs)?;
         if arg != "cargo" {
             log::warn!("Not run from cargo.");
@@ -92,7 +95,7 @@ impl Subcommand {
             return Err(Error::InvalidArgs);
         }
         let cmd = args.next().ok_or(Error::InvalidArgs)?;
-        let args: Vec<_> = args.collect();
+        let mut cargo_args = Vec::new();
         let mut target = None;
         let mut profile = Profile::Dev;
         let mut artifacts = Vec::new();
@@ -101,42 +104,39 @@ impl Subcommand {
         let mut package = None;
         let mut examples = false;
         let mut bins = false;
-        let mut iter = args.iter();
-        while let Some(arg) = iter.next() {
-            match arg.as_str() {
-                "--release" => profile = Profile::Release,
-                "--target" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    target = Some(arg.to_string());
+        while let Some(name) = args.next() {
+            let value = if let Some(value) = args.peek() {
+                if !value.starts_with("-") {
+                    args.next()
+                } else {
+                    None
                 }
-                "--profile" => match iter.next().ok_or(Error::InvalidArgs)?.as_str() {
-                    "dev" => profile = Profile::Dev,
-                    "release" => profile = Profile::Release,
-                    arg => profile = Profile::Custom(arg.to_string()),
-                },
-                "--example" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    artifacts.push(Artifact::Example(arg.to_string()));
+            } else {
+                None
+            };
+            let value_ref = value.as_ref().map(|s| &**s);
+            let mut matched = true;
+            match (name.as_str(), value_ref) {
+                ("--release", None) => profile = Profile::Release,
+                ("--target", Some(value)) => target = Some(value.to_string()),
+                ("--profile", Some("dev")) => profile = Profile::Dev,
+                ("--profile", Some("release")) => profile = Profile::Release,
+                ("--profile", Some(value)) => profile = Profile::Custom(value.to_string()),
+                ("--example", Some(value)) => artifacts.push(Artifact::Example(value.to_string())),
+                ("--examples", None) => examples = true,
+                ("--bin", Some(value)) => artifacts.push(Artifact::Root(value.to_string())),
+                ("--bins", None) => bins = true,
+                ("--package", Some(value)) |
+                ("-p", Some(value)) => package = Some(value.to_string()),
+                ("--target-dir", Some(value)) => target_dir = Some(PathBuf::from(value)),
+                ("--manifest-path", Some(value)) => manifest_path = Some(PathBuf::from(value)),
+                _ => matched = false,
+            }
+            if matched || !parser(name.as_str(), value_ref)? {
+                cargo_args.push(name);
+                if let Some(value) = value {
+                    cargo_args.push(value);
                 }
-                "--examples" => examples = true,
-                "--bin" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    artifacts.push(Artifact::Root(arg.to_string()));
-                }
-                "--bins" => bins = true,
-                "--package" | "-p" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    package = Some(arg.to_string());
-                }
-                "--target-dir" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    target_dir = Some(PathBuf::from(arg));
-                }
-                "--manifest-path" => {
-                    let arg = iter.next().ok_or(Error::InvalidArgs)?;
-                    manifest_path = Some(PathBuf::from(arg));
-                }
-                _ => {}
             }
         }
         let manifest_path = manifest_path.unwrap_or_else(|| std::env::current_dir().unwrap());
@@ -168,7 +168,7 @@ impl Subcommand {
             .ok_or(Error::RustcNotFound)?;
         Ok(Self {
             cmd,
-            args,
+            args: cargo_args,
             host_triple,
             target,
             project,
