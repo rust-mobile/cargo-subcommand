@@ -95,7 +95,7 @@ impl Subcommand {
         if arg != subcommand {
             return Err(Error::InvalidArgs);
         }
-        let cmd = args.next().ok_or(Error::InvalidArgs)?;
+        let cmd = args.next().unwrap_or_else(|| "--help".to_string());
         let mut cargo_args = Vec::new();
         let mut target = None;
         let mut profile = Profile::Dev;
