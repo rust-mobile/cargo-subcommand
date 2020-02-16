@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-subcommand"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "cargo-project 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
