@@ -1,4 +1,5 @@
 use cargo_project::Project;
+use std::ffi::OsStr;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -54,9 +55,9 @@ impl Artifact {
                     self.name().to_string()
                 }
             }
-            CrateType::Lib => format!("lib{}.rlib", self.name()),
-            CrateType::Staticlib => format!("lib{}.a", self.name()),
-            CrateType::Cdylib => format!("lib{}.so", self.name()),
+            CrateType::Lib => format!("lib{}.rlib", self.name().replace("-", "_")),
+            CrateType::Staticlib => format!("lib{}.a", self.name().replace("-", "_")),
+            CrateType::Cdylib => format!("lib{}.so", self.name().replace("-", "_")),
         }
     }
 }
@@ -87,10 +88,7 @@ impl Subcommand {
         mut parser: F,
     ) -> Result<Self, Error> {
         let mut args = std::env::args().peekable();
-        let arg = args.next().ok_or(Error::InvalidArgs)?;
-        if arg != "cargo" {
-            log::warn!("Not run from cargo.");
-        }
+        args.next().ok_or(Error::InvalidArgs)?;
         let arg = args.next().ok_or(Error::InvalidArgs)?;
         if arg != subcommand {
             return Err(Error::InvalidArgs);
@@ -129,8 +127,9 @@ impl Subcommand {
                 ("--examples", None) => examples = true,
                 ("--bin", Some(value)) => artifacts.push(Artifact::Root(value.to_string())),
                 ("--bins", None) => bins = true,
-                ("--package", Some(value)) |
-                ("-p", Some(value)) => package = Some(value.to_string()),
+                ("--package", Some(value)) | ("-p", Some(value)) => {
+                    package = Some(value.to_string())
+                }
                 ("--target-dir", Some(value)) => target_dir = Some(PathBuf::from(value)),
                 ("--manifest-path", Some(value)) => manifest_path = Some(PathBuf::from(value)),
                 _ => matched = false,
@@ -148,16 +147,21 @@ impl Subcommand {
             log::warn!("-p, --package option not implemented");
         }
         let project = Project::query(&manifest_path).map_err(|_| Error::ManifestNotFound)?;
-        if artifacts.is_empty() {
-            artifacts.push(Artifact::Root(project.name().replace("-", "_")));
-        }
         let target_dir = target_dir.unwrap_or_else(|| project.target_dir().to_path_buf());
+        let root_dir = project.toml().parent().unwrap();
         // TODO examples and bins: add artifacts
         if examples {
-            log::warn!("--examples option not implemented");
+            for file in list_rust_files(&root_dir.join("examples"))? {
+                artifacts.push(Artifact::Example(file));
+            }
         }
         if bins {
-            log::warn!("--bins option not implemented");
+            for file in list_rust_files(&root_dir.join("src").join("bin"))? {
+                artifacts.push(Artifact::Root(file));
+            }
+        }
+        if artifacts.is_empty() {
+            artifacts.push(Artifact::Root(project.name().to_string()));
         }
         let host_triple = Command::new("rustc")
             .arg("-vV")
@@ -223,11 +227,27 @@ impl Subcommand {
     }
 }
 
+fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
+    let mut files = Vec::new();
+    if dir.exists() && dir.is_dir() {
+        let entries = std::fs::read_dir(dir)?;
+        for entry in entries {
+            let path = entry?.path();
+            if path.is_file() && path.extension() == Some(OsStr::new("rs")) {
+                let name = path.file_stem().unwrap().to_str().unwrap();
+                files.push(name.to_string());
+            }
+        }
+    }
+    Ok(files)
+}
+
 #[derive(Debug)]
 pub enum Error {
     InvalidArgs,
     ManifestNotFound,
     RustcNotFound,
+    Io(std::io::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -236,9 +256,16 @@ impl std::fmt::Display for Error {
             Self::InvalidArgs => "Invalid args.",
             Self::ManifestNotFound => "Didn't find Cargo.toml",
             Self::RustcNotFound => "Didn't find rustc.",
+            Self::Io(error) => return error.fmt(f),
         };
         write!(f, "{}", msg)
     }
 }
 
 impl std::error::Error for Error {}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error)
+    }
+}
