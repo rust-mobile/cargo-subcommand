@@ -20,6 +20,7 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
 
 fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<PathBuf>, Error> {
     for member in members {
+        let member = member.split('/').collect::<PathBuf>();
         let manifest_path = manifest.parent().unwrap().join(member).join("Cargo.toml");
         let manifest = Manifest::parse_from_toml(&manifest_path)?;
         if let Some(p) = manifest.package.as_ref() {
