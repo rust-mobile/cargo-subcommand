@@ -1,7 +1,7 @@
+use glob::{GlobError, PatternError};
 use std::fmt::{Display, Formatter, Result};
 use std::io::Error as IoError;
 use toml::de::Error as TomlError;
-use glob::{PatternError, GlobError};
 
 #[derive(Debug)]
 pub enum Error {

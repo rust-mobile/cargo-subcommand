@@ -35,7 +35,8 @@ fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<P
 
 pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String), Error> {
     let path = std::fs::canonicalize(path)?;
-    for manifest_path in path.ancestors()
+    for manifest_path in path
+        .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
         .filter(|dir| dir.exists())
     {
@@ -60,7 +61,8 @@ pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)
 
 pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Error> {
     let dir = manifest.parent().unwrap();
-    for manifest_path in dir.ancestors()
+    for manifest_path in dir
+        .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
         .filter(|dir| dir.exists())
     {

@@ -1,10 +1,10 @@
+use crate::artifact::Artifact;
 use crate::error::Error;
 use crate::profile::Profile;
-use crate::artifact::Artifact;
 use crate::utils;
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::io::BufRead;
 
 #[derive(Debug)]
 pub struct Subcommand {
@@ -84,14 +84,14 @@ impl Subcommand {
             package.as_ref().map(|s| &**s),
         )?;
         let root_dir = manifest.parent().unwrap();
-        let target_dir = target_dir
-            .unwrap_or_else(|| {
-                utils::find_workspace(&manifest, &package).unwrap()
-                    .unwrap_or_else(|| manifest.clone())
-                    .parent()
-                    .unwrap()
-                    .join("target")
-            });
+        let target_dir = target_dir.unwrap_or_else(|| {
+            utils::find_workspace(&manifest, &package)
+                .unwrap()
+                .unwrap_or_else(|| manifest.clone())
+                .parent()
+                .unwrap()
+                .join("target")
+        });
         if examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
                 artifacts.push(Artifact::Example(file));
