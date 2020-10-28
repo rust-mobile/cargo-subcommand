@@ -20,12 +20,13 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
 
 fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<PathBuf>, Error> {
     for member in members {
-        let member = member.split('/').collect::<PathBuf>();
-        let manifest_path = manifest.parent().unwrap().join(member).join("Cargo.toml");
-        let manifest = Manifest::parse_from_toml(&manifest_path)?;
-        if let Some(p) = manifest.package.as_ref() {
-            if p.name == package {
-                return Ok(Some(manifest_path));
+        for member in glob::glob(member)? {
+            let manifest_path = manifest.parent().unwrap().join(member?).join("Cargo.toml");
+            let manifest = Manifest::parse_from_toml(&manifest_path)?;
+            if let Some(p) = manifest.package.as_ref() {
+                if p.name == package {
+                    return Ok(Some(manifest_path));
+                }
             }
         }
     }
@@ -34,7 +35,8 @@ fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<P
 
 pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String), Error> {
     let path = std::fs::canonicalize(path)?;
-    for manifest_path in path.ancestors()
+    for manifest_path in path
+        .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
         .filter(|dir| dir.exists())
     {
@@ -59,7 +61,8 @@ pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)
 
 pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Error> {
     let dir = manifest.parent().unwrap();
-    for manifest_path in dir.ancestors()
+    for manifest_path in dir
+        .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
         .filter(|dir| dir.exists())
     {
