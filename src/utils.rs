@@ -19,9 +19,10 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
 }
 
 fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<PathBuf>, Error> {
+    let workspace_dir = manifest.parent().unwrap();
     for member in members {
-        for member in glob::glob(member)? {
-            let manifest_path = manifest.parent().unwrap().join(member?).join("Cargo.toml");
+        for manifest_dir in glob::glob(workspace_dir.join(member).to_str().unwrap())? {
+            let manifest_path = manifest_dir?.join("Cargo.toml");
             let manifest = Manifest::parse_from_toml(&manifest_path)?;
             if let Some(p) = manifest.package.as_ref() {
                 if p.name == package {
