@@ -84,6 +84,13 @@ impl Subcommand {
             package.as_ref().map(|s| &**s),
         )?;
         let root_dir = manifest.parent().unwrap();
+
+        let target_dir = target_dir.or_else(|| {
+            std::env::var_os("CARGO_BUILD_TARGET_DIR")
+                .or_else(|| std::env::var_os("CARGO_TARGET_DIR"))
+                .map(|os_str| os_str.into())
+        });
+
         let target_dir = target_dir.unwrap_or_else(|| {
             utils::find_workspace(&manifest, &package)
                 .unwrap()
@@ -92,6 +99,7 @@ impl Subcommand {
                 .unwrap()
                 .join("target")
         });
+        let target_dir = std::fs::canonicalize(target_dir).unwrap();
         if examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
                 artifacts.push(Artifact::Example(file));
