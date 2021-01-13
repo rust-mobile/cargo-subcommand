@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 [[package]]
 name = "cargo-subcommand"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "dunce",
  "glob",
