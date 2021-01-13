@@ -35,7 +35,7 @@ fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<P
 }
 
 pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String), Error> {
-    let path = path.canonicalize()?;
+    let path = dunce::canonicalize(path)?;
     for manifest_path in path
         .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
