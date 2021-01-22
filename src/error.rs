@@ -6,6 +6,7 @@ use toml::de::Error as TomlError;
 #[derive(Debug)]
 pub enum Error {
     InvalidArgs,
+    InvalidConfig,
     ManifestNotFound,
     RustcNotFound,
     Io(IoError),
@@ -16,6 +17,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> Result {
         let msg = match self {
             Self::InvalidArgs => "Invalid args.",
+            Self::InvalidConfig => "Invalid config.",
             Self::ManifestNotFound => "Didn't find Cargo.toml.",
             Self::RustcNotFound => "Didn't find rustc.",
             Self::Io(error) => return error.fmt(f),

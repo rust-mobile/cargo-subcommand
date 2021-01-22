@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::error::Error;
 use crate::manifest::Manifest;
 use std::ffi::OsStr;
@@ -79,7 +80,7 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
 
 /**
  * Search for .cargo/config.toml file
- * 
+ *
  * - Receive the workspace root path
  */
 pub fn find_cargo_config(path: &Path) -> Result<Option<PathBuf>, Error> {
@@ -92,4 +93,18 @@ pub fn find_cargo_config(path: &Path) -> Result<Option<PathBuf>, Error> {
         return Ok(Some(config_path));
     }
     Ok(None)
+}
+
+pub fn get_target_dir_name(path: &Path) -> Result<String, Error> {
+    if let Some(config_path) = find_cargo_config(&path).unwrap() {
+        let config = Config::parse_from_toml(&config_path)?;
+        if let Some(build) = config.build.as_ref() {
+            if let Some(target_dir) = &build.target_dir {
+                return Ok(target_dir.clone());
+            }
+        }
+    } else {
+        return Ok("target".to_string());
+    }
+    Err(Error::InvalidConfig)
 }
