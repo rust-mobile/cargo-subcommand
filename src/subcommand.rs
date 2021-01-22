@@ -1,4 +1,5 @@
 use crate::artifact::Artifact;
+use crate::config;
 use crate::error::Error;
 use crate::profile::Profile;
 use crate::utils;
@@ -105,7 +106,8 @@ impl Subcommand {
                 .unwrap_or_else(|| manifest.clone())
                 .parent()
                 .unwrap()
-                .join("target")
+                // Get target dir name from config
+                .join(config::get_targer_dir_name(&root_dir))
         });
         if examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
