@@ -78,11 +78,7 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
     Ok(None)
 }
 
-/**
- * Search for .cargo/config.toml file
- *
- * - Receive the workspace root path
- */
+/// Search for .cargo/config.toml file relative to the workspace root path.
 pub fn find_cargo_config(path: &Path) -> Result<Option<PathBuf>, Error> {
     let path = dunce::canonicalize(path)?;
     path

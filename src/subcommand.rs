@@ -105,7 +105,6 @@ impl Subcommand {
                 .unwrap_or_else(|| manifest.clone())
                 .parent()
                 .unwrap()
-                // Get target dir name from config
                 .join(utils::get_target_dir_name(&root_dir).unwrap())
         });
         if examples {
