@@ -22,10 +22,11 @@ pub struct Subcommand {
 
 impl Subcommand {
     pub fn new<F: FnMut(&str, Option<&str>) -> Result<bool, Error>>(
+        args: impl Iterator<Item = String>,
         subcommand: &'static str,
         mut parser: F,
     ) -> Result<Self, Error> {
-        let mut args = std::env::args().peekable();
+        let mut args = args.peekable();
         args.next().ok_or(Error::InvalidArgs)?;
         let arg = args.next().ok_or(Error::InvalidArgs)?;
         if arg != subcommand {
