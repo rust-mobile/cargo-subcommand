@@ -95,7 +95,6 @@ pub fn get_target_dir_name(path: &Path) -> Result<String, Error> {
                 return Ok(target_dir.clone());
             }
         }
-    } else {
-        Ok("target".to_string())
     }
+    Ok("target".to_string())
 }
