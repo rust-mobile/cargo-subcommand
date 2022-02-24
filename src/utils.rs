@@ -78,18 +78,11 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
     Ok(None)
 }
 
-/// Search for .cargo/config.toml file relative to the workspace root path.
-pub fn find_cargo_config(path: &Path) -> Result<Option<PathBuf>, Error> {
-    let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
-    Ok(path
-        .ancestors()
-        .map(|dir| dir.join(".cargo/config.toml"))
-        .find(|dir| dir.is_file()))
-}
-
-pub fn get_target_dir_name(path: &Path) -> Result<String, Error> {
-    if let Some(config_path) = find_cargo_config(path)? {
-        let config = Config::parse_from_toml(&config_path)?;
+/// Returns the [`target-dir`] configured in `.cargo/config.toml` or `"target"` if not set.
+///
+/// [`target-dir`](https://doc.rust-lang.org/cargo/reference/config.html#buildtarget-dir)
+pub fn get_target_dir_name(config: Option<&Config>) -> Result<String, Error> {
+    if let Some(config) = config {
         if let Some(build) = config.build.as_ref() {
             if let Some(target_dir) = &build.target_dir {
                 return Ok(target_dir.clone());
