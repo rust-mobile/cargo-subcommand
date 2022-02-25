@@ -45,6 +45,7 @@ impl Subcommand {
         let mut quiet = false;
         while let Some(mut name) = args.next() {
             let value = if let Some(position) = name.as_str().find('=') {
+                name.remove(position); // drop the '=' sign so we can cleanly split the string in two
                 Some(name.split_off(position))
             } else if let Some(value) = args.peek() {
                 if !value.starts_with("-") {
