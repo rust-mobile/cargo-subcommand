@@ -48,7 +48,7 @@ impl Subcommand {
                 name.remove(position); // drop the '=' sign so we can cleanly split the string in two
                 Some(name.split_off(position))
             } else if let Some(value) = args.peek() {
-                if !value.starts_with("-") {
+                if !value.starts_with('-') {
                     args.next()
                 } else {
                     None
@@ -56,7 +56,7 @@ impl Subcommand {
             } else {
                 None
             };
-            let value_ref = value.as_ref().map(|s| &**s);
+            let value_ref = value.as_deref();
             let mut matched = true;
             match (name.as_str(), value_ref) {
                 ("--quiet", None) => quiet = true,
@@ -85,7 +85,7 @@ impl Subcommand {
         }
         let (manifest, package) = utils::find_package(
             &manifest_path.unwrap_or_else(|| std::env::current_dir().unwrap()),
-            package.as_ref().map(|s| &**s),
+            package.as_deref(),
         )?;
         let root_dir = manifest.parent().unwrap();
 
@@ -109,7 +109,7 @@ impl Subcommand {
                 .unwrap_or_else(|| manifest.clone())
                 .parent()
                 .unwrap()
-                .join(utils::get_target_dir_name(&root_dir).unwrap())
+                .join(utils::get_target_dir_name(root_dir).unwrap())
         });
         if examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
@@ -165,7 +165,7 @@ impl Subcommand {
     }
 
     pub fn target(&self) -> Option<&str> {
-        self.target.as_ref().map(|s| &**s)
+        self.target.as_deref()
     }
 
     pub fn profile(&self) -> &Profile {

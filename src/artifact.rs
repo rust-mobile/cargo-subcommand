@@ -34,9 +34,9 @@ impl Artifact {
                     self.name().to_string()
                 }
             }
-            CrateType::Lib => format!("lib{}.rlib", self.name().replace("-", "_")),
-            CrateType::Staticlib => format!("lib{}.a", self.name().replace("-", "_")),
-            CrateType::Cdylib => format!("lib{}.so", self.name().replace("-", "_")),
+            CrateType::Lib => format!("lib{}.rlib", self.name().replace('-', "_")),
+            CrateType::Staticlib => format!("lib{}.a", self.name().replace('-', "_")),
+            CrateType::Cdylib => format!("lib{}.so", self.name().replace('-', "_")),
         }
     }
 }
