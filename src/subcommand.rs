@@ -43,8 +43,11 @@ impl Subcommand {
         let mut examples = false;
         let mut bins = false;
         let mut quiet = false;
-        while let Some(name) = args.next() {
-            let value = if let Some(value) = args.peek() {
+        while let Some(mut name) = args.next() {
+            let value = if let Some(position) = name.as_str().find('=') {
+                name.remove(position); // drop the '=' sign so we can cleanly split the string in two
+                Some(name.split_off(position))
+            } else if let Some(value) = args.peek() {
                 if !value.starts_with("-") {
                     args.next()
                 } else {
@@ -183,5 +186,24 @@ impl Subcommand {
 
     pub fn quiet(&self) -> bool {
         self.quiet
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_separator_space() {
+        let args = ["cargo", "subcommand", "build", "--target", "x86_64-unknown-linux-gnu"].iter().map(|s| s.to_string());
+        let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
+        assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    fn test_separator_equals() {
+        let args = ["cargo", "subcommand", "build", "--target=x86_64-unknown-linux-gnu"].iter().map(|s| s.to_string());
+        let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
+        assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
     }
 }
