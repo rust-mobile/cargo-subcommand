@@ -43,8 +43,10 @@ impl Subcommand {
         let mut examples = false;
         let mut bins = false;
         let mut quiet = false;
-        while let Some(name) = args.next() {
-            let value = if let Some(value) = args.peek() {
+        while let Some(mut name) = args.next() {
+            let value = if let Some(position) = name.as_str().find('=') {
+                Some(name.split_off(position))
+            } else if let Some(value) = args.peek() {
                 if !value.starts_with("-") {
                     args.next()
                 } else {
