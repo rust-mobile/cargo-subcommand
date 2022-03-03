@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
     let mut files = Vec::new();
     if dir.exists() && dir.is_dir() {
-        let entries = std::fs::read_dir(dir)?;
+        let entries = std::fs::read_dir(dir).map_err(|e| Error::Io(dir.to_owned(), e))?;
         for entry in entries {
-            let path = entry?.path();
+            let path = entry.map_err(|e| Error::Io(dir.to_owned(), e))?.path();
             if path.is_file() && path.extension() == Some(OsStr::new("rs")) {
                 let name = path.file_stem().unwrap().to_str().unwrap();
                 files.push(name.to_string());
@@ -36,7 +36,7 @@ fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<P
 }
 
 pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String), Error> {
-    let path = dunce::canonicalize(path)?;
+    let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
     for manifest_path in path
         .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
@@ -80,7 +80,7 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
 
 /// Search for .cargo/config.toml file relative to the workspace root path.
 pub fn find_cargo_config(path: &Path) -> Result<Option<PathBuf>, Error> {
-    let path = dunce::canonicalize(path)?;
+    let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
     Ok(path
         .ancestors()
         .map(|dir| dir.join(".cargo/config.toml"))
