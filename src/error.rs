@@ -9,8 +9,9 @@ pub enum Error {
     InvalidArgs,
     ManifestNotFound,
     RustcNotFound,
-    Io(IoError),
     GlobPatternError(&'static str),
+    Glob(GlobError),
+    Io(PathBuf, IoError),
     Toml(PathBuf, TomlError),
 }
 
@@ -20,8 +21,9 @@ impl Display for Error {
             Self::InvalidArgs => "Invalid args.",
             Self::ManifestNotFound => "Didn't find Cargo.toml.",
             Self::RustcNotFound => "Didn't find rustc.",
-            Self::Io(error) => return error.fmt(f),
             Self::GlobPatternError(error) => error,
+            Self::Glob(error) => return error.fmt(f),
+            Self::Io(path, error) => return write!(f, "{}: {}", path.display(), error),
             Self::Toml(file, error) => return write!(f, "{}: {}", file.display(), error),
         };
         write!(f, "{}", msg)
@@ -29,12 +31,6 @@ impl Display for Error {
 }
 
 impl std::error::Error for Error {}
-
-impl From<IoError> for Error {
-    fn from(error: IoError) -> Self {
-        Self::Io(error)
-    }
-}
 
 impl From<PatternError> for Error {
     fn from(error: PatternError) -> Self {
@@ -44,6 +40,6 @@ impl From<PatternError> for Error {
 
 impl From<GlobError> for Error {
     fn from(error: GlobError) -> Self {
-        Self::Io(error.into_error())
+        Self::Glob(error)
     }
 }
