@@ -195,14 +195,29 @@ mod tests {
 
     #[test]
     fn test_separator_space() {
-        let args = ["cargo", "subcommand", "build", "--target", "x86_64-unknown-linux-gnu"].iter().map(|s| s.to_string());
+        let args = [
+            "cargo",
+            "subcommand",
+            "build",
+            "--target",
+            "x86_64-unknown-linux-gnu",
+        ]
+        .iter()
+        .map(|s| s.to_string());
         let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
         assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
     }
 
     #[test]
     fn test_separator_equals() {
-        let args = ["cargo", "subcommand", "build", "--target=x86_64-unknown-linux-gnu"].iter().map(|s| s.to_string());
+        let args = [
+            "cargo",
+            "subcommand",
+            "build",
+            "--target=x86_64-unknown-linux-gnu",
+        ]
+        .iter()
+        .map(|s| s.to_string());
         let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
         assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
     }
