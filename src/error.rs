@@ -1,6 +1,7 @@
 use glob::{GlobError, PatternError};
 use std::fmt::{Display, Formatter, Result};
 use std::io::Error as IoError;
+use std::path::PathBuf;
 use toml::de::Error as TomlError;
 
 #[derive(Debug)]
@@ -10,7 +11,7 @@ pub enum Error {
     RustcNotFound,
     Io(IoError),
     GlobPatternError(&'static str),
-    Toml(TomlError),
+    Toml(PathBuf, TomlError),
 }
 
 impl Display for Error {
@@ -21,7 +22,7 @@ impl Display for Error {
             Self::RustcNotFound => "Didn't find rustc.",
             Self::Io(error) => return error.fmt(f),
             Self::GlobPatternError(error) => error,
-            Self::Toml(error) => return error.fmt(f),
+            Self::Toml(file, error) => return write!(f, "{}: {}", file.display(), error),
         };
         write!(f, "{}", msg)
     }
@@ -32,12 +33,6 @@ impl std::error::Error for Error {}
 impl From<IoError> for Error {
     fn from(error: IoError) -> Self {
         Self::Io(error)
-    }
-}
-
-impl From<TomlError> for Error {
-    fn from(error: TomlError) -> Self {
-        Self::Toml(error)
     }
 }
 
