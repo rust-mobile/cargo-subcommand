@@ -10,6 +10,7 @@ pub enum Error {
     RustcNotFound,
     Io(IoError),
     GlobPatternError(&'static str),
+    Toml(TomlError),
 }
 
 impl Display for Error {
@@ -20,6 +21,7 @@ impl Display for Error {
             Self::RustcNotFound => "Didn't find rustc.",
             Self::Io(error) => return error.fmt(f),
             Self::GlobPatternError(error) => error,
+            Self::Toml(error) => return error.fmt(f),
         };
         write!(f, "{}", msg)
     }
@@ -34,8 +36,8 @@ impl From<IoError> for Error {
 }
 
 impl From<TomlError> for Error {
-    fn from(_error: TomlError) -> Self {
-        Self::ManifestNotFound
+    fn from(error: TomlError) -> Self {
+        Self::Toml(error)
     }
 }
 
