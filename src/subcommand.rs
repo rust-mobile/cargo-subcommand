@@ -1,7 +1,7 @@
 use crate::artifact::Artifact;
 use crate::error::Error;
 use crate::profile::Profile;
-use crate::utils;
+use crate::{utils, LocalizedConfig};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -18,6 +18,7 @@ pub struct Subcommand {
     profile: Profile,
     artifacts: Vec<Artifact>,
     quiet: bool,
+    config: Option<LocalizedConfig>,
 }
 
 impl Subcommand {
@@ -103,13 +104,15 @@ impl Subcommand {
                 }
             });
 
+        let config = LocalizedConfig::find_cargo_config_for_workspace(&root_dir)?;
+
         let target_dir = target_dir.unwrap_or_else(|| {
             utils::find_workspace(&manifest, &package)
                 .unwrap()
                 .unwrap_or_else(|| manifest.clone())
                 .parent()
                 .unwrap()
-                .join(utils::get_target_dir_name(root_dir).unwrap())
+                .join(utils::get_target_dir_name(config.as_deref()).unwrap())
         });
         if examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
@@ -145,6 +148,7 @@ impl Subcommand {
             profile,
             artifacts,
             quiet,
+            config,
         })
     }
 
@@ -186,6 +190,10 @@ impl Subcommand {
 
     pub fn quiet(&self) -> bool {
         self.quiet
+    }
+
+    pub fn config(&self) -> Option<&LocalizedConfig> {
+        self.config.as_ref()
     }
 }
 
