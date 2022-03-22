@@ -94,36 +94,26 @@ impl LocalizedConfig {
         config.map(LocalizedConfig::new).transpose()
     }
 
-    /// Read an environment variable from the `[env]` section in this `.cargo/config.toml`.
+    /// Propagate environment variables from this `.cargo/config.toml` to the process environment
+    /// using [`std::env::set_var()`].
     ///
-    /// It is interpreted as path and canonicalized relative to [`Self::workspace`] if
-    /// [`EnvOption::Value::relative`] is set.
-    ///
-    /// Process environment variables (from [`std::env::var()`]) have [precedence]
-    /// unless [`EnvOption::Value::force`] is set. This value is also returned if
-    /// the given key was not set under `[env]`.
-    ///
-    /// [precedence]: https://doc.rust-lang.org/cargo/reference/config.html#env
-    pub fn resolve_env(&self, key: &str) -> Result<Cow<'_, str>> {
-        let config_var = self.config.env.as_ref().and_then(|env| env.get(key));
+    /// Note that this is automatically performed when calling [`Subcommand::new()`][super::Subcommand::new()].
+    pub fn set_env_vars(&self) -> Result<()> {
+        if let Some(env) = &self.config.env {
+            for (key, env_option) in env {
+                // Existing environment variables always have precedence unless
+                // the extended format is used to set `force = true`:
+                if !matches!(env_option, EnvOption::Value { force: true, .. })
+                    && std::env::var_os(key).is_some()
+                {
+                    continue;
+                }
 
-        // Environment variables always have precedence unless
-        // the extended format is used to set `force = true`:
-        if let Some(env_option @ EnvOption::Value { force: true, .. }) = config_var {
-            // Errors iresolving (canonicalizing, really) the config variable take precedence, too:
-            return env_option.resolve_value(&self.workspace);
+                std::env::set_var(key, env_option.resolve_value(&self.workspace)?.as_ref())
+            }
         }
 
-        let process_var = std::env::var(key);
-        if process_var != Err(VarError::NotPresent) {
-            // Errors from env::var() also have precedence here:
-            return Ok(process_var?.into());
-        }
-
-        // Finally, the value in `[env]` (if it exists) is taken into account
-        config_var
-            .ok_or(VarError::NotPresent)?
-            .resolve_value(&self.workspace)
+        Ok(())
     }
 }
 
@@ -226,52 +216,45 @@ CARGO_SUBCOMMAND_TEST_ENV_FORCED = { value = "forced", force = true }"#;
         workspace: PathBuf::new(),
     };
 
+    // Check if all values are propagated to the environment
+    config.set_env_vars().unwrap();
+
     assert!(matches!(
-        config.resolve_env("CARGO_SUBCOMMAND_TEST_ENV_NOT_SET"),
-        Err(EnvError::Var(VarError::NotPresent))
+        std::env::var("CARGO_SUBCOMMAND_TEST_ENV_NOT_SET"),
+        Err(VarError::NotPresent)
     ));
     assert_eq!(
-        config
-            .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_NOT_FORCED")
-            .unwrap(),
-        Cow::from("not forced")
+        std::env::var("CARGO_SUBCOMMAND_TEST_ENV_NOT_FORCED").unwrap(),
+        "not forced"
     );
     assert_eq!(
-        config
-            .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_FORCED")
-            .unwrap(),
-        Cow::from("forced")
+        std::env::var("CARGO_SUBCOMMAND_TEST_ENV_FORCED").unwrap(),
+        "forced"
     );
 
-    std::env::set_var("CARGO_SUBCOMMAND_TEST_ENV_NOT_SET", "set in env");
+    // Set some environment values
     std::env::set_var(
         "CARGO_SUBCOMMAND_TEST_ENV_NOT_FORCED",
-        "not forced overridden",
+        "not forced process environment value",
     );
-    std::env::set_var("CARGO_SUBCOMMAND_TEST_ENV_FORCED", "forced overridden");
+    std::env::set_var(
+        "CARGO_SUBCOMMAND_TEST_ENV_FORCED",
+        "forced process environment value",
+    );
+
+    config.set_env_vars().unwrap();
 
     assert_eq!(
-        config
-            .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_NOT_SET")
-            .unwrap(),
-        // Even if the value isn't present in [env] it should still resolve to the
-        // value in the process environment
-        Cow::from("set in env")
+        std::env::var("CARGO_SUBCOMMAND_TEST_ENV_NOT_FORCED").unwrap(),
+        // Value remains what is set in the process environment,
+        // and is not overwritten by set_env_vars()
+        "not forced process environment value"
     );
     assert_eq!(
-        config
-            .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_NOT_FORCED")
-            .unwrap(),
-        // Value changed now that it is set in the environment
-        Cow::from("not forced overridden")
-    );
-    assert_eq!(
-        config
-            .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_FORCED")
-            .unwrap(),
-        // Value stays at how it was configured in [env] with force=true, despite
+        std::env::var("CARGO_SUBCOMMAND_TEST_ENV_FORCED").unwrap(),
+        // Value is overwritten thanks to force=true, despite
         // also being set in the process environment
-        Cow::from("forced")
+        "forced"
     );
 }
 
@@ -282,6 +265,24 @@ fn test_env_canonicalization() {
     let toml = r#"
 [env]
 CARGO_SUBCOMMAND_TEST_ENV_SRC_DIR = { value = "src", force = true, relative = true }
+"#;
+
+    let config = LocalizedConfig {
+        config: toml::from_str::<Config>(toml).unwrap(),
+        workspace: PathBuf::new(),
+    };
+
+    config.set_env_vars().unwrap();
+
+    let path = std::env::var("CARGO_SUBCOMMAND_TEST_ENV_SRC_DIR")
+        .expect("Canonicalization for a known-to-exist ./src folder should not fail");
+    let path = PathBuf::from(path);
+    assert!(path.is_absolute());
+    assert!(path.is_dir());
+    assert_eq!(path.file_name(), Some(OsStr::new("src")));
+
+    let toml = r#"
+[env]
 CARGO_SUBCOMMAND_TEST_ENV_INEXISTENT_DIR = { value = "blahblahthisfolderdoesntexist", force = true, relative = true }
 "#;
 
@@ -290,15 +291,5 @@ CARGO_SUBCOMMAND_TEST_ENV_INEXISTENT_DIR = { value = "blahblahthisfolderdoesntex
         workspace: PathBuf::new(),
     };
 
-    let path = config
-        .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_SRC_DIR")
-        .expect("Canonicalization for a known-to-exist ./src folder should not fail");
-    let path = Path::new(path.as_ref());
-    assert!(path.is_absolute());
-    assert!(path.is_dir());
-    assert_eq!(path.file_name(), Some(OsStr::new("src")));
-
-    assert!(config
-        .resolve_env("CARGO_SUBCOMMAND_TEST_ENV_INEXISTENT_DIR")
-        .is_err());
+    assert!(matches!(config.set_env_vars(), Err(EnvError::Io(..))));
 }

@@ -17,7 +17,7 @@ pub enum Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let msg = match self {
+        f.write_str(match self {
             Self::InvalidArgs => "Invalid args.",
             Self::ManifestNotFound => "Didn't find Cargo.toml.",
             Self::RustcNotFound => "Didn't find rustc.",
@@ -25,8 +25,7 @@ impl Display for Error {
             Self::Glob(error) => return error.fmt(f),
             Self::Io(path, error) => return write!(f, "{}: {}", path.display(), error),
             Self::Toml(file, error) => return write!(f, "{}: {}", file.display(), error),
-        };
-        write!(f, "{}", msg)
+        })
     }
 }
 
