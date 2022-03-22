@@ -80,7 +80,7 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
 
 /// Returns the [`target-dir`] configured in `.cargo/config.toml` or `"target"` if not set.
 ///
-/// [`target-dir`](https://doc.rust-lang.org/cargo/reference/config.html#buildtarget-dir)
+/// [`target-dir`]: https://doc.rust-lang.org/cargo/reference/config.html#buildtarget-dir
 pub fn get_target_dir_name(config: Option<&Config>) -> Result<String, Error> {
     if let Some(config) = config {
         if let Some(build) = config.build.as_ref() {
