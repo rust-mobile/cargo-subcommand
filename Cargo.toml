@@ -1,7 +1,7 @@
 [package]
 name = "cargo-subcommand"
-version = "0.6.0"
-authors = ["David Craven <david@craven.ch>"]
+version = "0.7.0"
+authors = ["David Craven <david@craven.ch>", "Marijn Suijten <marijn@traverseresearch.nl>"]
 edition = "2018"
 description = "Library for creating cargo subcommands."
 repository = "https://github.com/dvc94ch/cargo-subcommand"
