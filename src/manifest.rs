@@ -11,6 +11,11 @@ use crate::utils;
 pub struct Manifest {
     pub workspace: Option<Workspace>,
     pub package: Option<Package>,
+    pub lib: Option<Lib>,
+    #[serde(default, rename = "bin")]
+    pub bins: Vec<Bin>,
+    #[serde(default, rename = "example")]
+    pub examples: Vec<Example>,
 }
 
 impl Manifest {
@@ -90,7 +95,50 @@ pub struct Workspace {
     pub members: Vec<String>,
 }
 
+const fn default_true() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Package {
     pub name: String,
+
+    // https://doc.rust-lang.org/cargo/reference/cargo-targets.html#target-auto-discovery
+    #[serde(default = "default_true")]
+    pub autobins: bool,
+    #[serde(default = "default_true")]
+    pub autoexamples: bool,
+    // #[serde(default = "default_true")]
+    // pub autotests: bool,
+    // #[serde(default = "default_true")]
+    // pub autobenches: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Deserialize)]
+pub enum CrateType {
+    Bin,
+    Lib,
+    Staticlib,
+    Cdylib,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Lib {
+    pub name: Option<String>,
+    pub path: Option<PathBuf>,
+    // pub crate_type: Vec<CrateType>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Bin {
+    pub name: String,
+    pub path: Option<PathBuf>,
+    // pub crate_type: Vec<CrateType>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Example {
+    pub name: String,
+    pub path: Option<PathBuf>,
+    // pub crate_type: Vec<CrateType>,
 }

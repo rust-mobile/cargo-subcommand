@@ -1,7 +1,9 @@
-# cargo-subcommand library for building subcommands
-Is used by `cargo-apk` and `cargo-flutter`.
+# `cargo-subcommand` library for building subcommands
+
+Is used by [`cargo-apk`](https://crates.io/crates/cargo-apk) and `cargo-flutter`.
 
 # License
+
 Copyright 2020 David Craven <david@craven.ch>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of

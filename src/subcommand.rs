@@ -1,8 +1,10 @@
 use crate::args::Args;
-use crate::artifact::{Artifact, CrateType};
+use crate::artifact::{Artifact, ArtifactType};
 use crate::error::{Error, Result};
+use crate::manifest::Manifest;
 use crate::profile::Profile;
-use crate::{utils, LocalizedConfig};
+use crate::{utils, CrateType, LocalizedConfig};
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -15,7 +17,9 @@ pub struct Subcommand {
     target_dir: PathBuf,
     host_triple: String,
     profile: Profile,
-    artifacts: Vec<Artifact>,
+    lib_artifact: Option<Artifact>,
+    bin_artifacts: Vec<Artifact>,
+    example_artifacts: Vec<Artifact>,
     config: Option<LocalizedConfig>,
 }
 
@@ -83,6 +87,8 @@ impl Subcommand {
             config.set_env_vars().unwrap();
         }
 
+        let parsed_manifest = Manifest::parse_from_toml(&manifest_path)?;
+
         let target_dir = args
             .target_dir
             .clone()
@@ -109,28 +115,161 @@ impl Subcommand {
                 .join(utils::get_target_dir_name(config.as_deref()).unwrap())
         });
 
-        let mut artifacts = vec![];
-        if args.examples {
-            for file in utils::list_rust_files(&root_dir.join("examples"))? {
-                artifacts.push(Artifact::Example(file));
-            }
-        } else {
-            for example in &args.example {
-                artifacts.push(Artifact::Example(example.into()));
+        // https://doc.rust-lang.org/cargo/reference/cargo-targets.html#target-auto-discovery
+
+        let main_bin_path = Path::new("src/main.rs");
+        let main_lib_path = Path::new("src/lib.rs");
+
+        let mut bin_artifacts = HashMap::new();
+        let mut example_artifacts = HashMap::new();
+
+        fn find_main_file(dir: &Path, name: &str) -> Option<PathBuf> {
+            let alt_path = dir.join(format!("{}.rs", name));
+            alt_path.is_file().then_some(alt_path).or_else(|| {
+                let alt_path = dir.join(name).join("main.rs");
+                alt_path.is_file().then_some(alt_path)
+            })
+        }
+
+        // Add all explicitly configured binaries
+        for bin in &parsed_manifest.bins {
+            let path = bin
+                .path
+                .clone()
+                .or_else(|| find_main_file(&root_dir.join("src/bin"), &bin.name))
+                .ok_or_else(|| Error::BinNotFound(bin.name.clone()))?;
+
+            let prev = bin_artifacts.insert(
+                bin.name.clone(),
+                Artifact {
+                    name: bin.name.clone(),
+                    path,
+                    r#type: ArtifactType::Bin,
+                },
+            );
+            if prev.is_some() {
+                return Err(Error::DuplicateBin(bin.name.clone()));
             }
         }
-        if args.bins {
+
+        // Add all explicitly configured examples
+        for example in &parsed_manifest.examples {
+            let path = example
+                .path
+                .clone()
+                .or_else(|| find_main_file(&root_dir.join("examples"), &example.name))
+                .ok_or_else(|| Error::BinNotFound(example.name.clone()))?;
+
+            let prev = example_artifacts.insert(
+                example.name.clone(),
+                Artifact {
+                    name: example.name.clone(),
+                    path,
+                    r#type: ArtifactType::Example,
+                },
+            );
+            if prev.is_some() {
+                return Err(Error::DuplicateExample(example.name.clone()));
+            }
+        }
+
+        /// Name is typically the [`Path::file_stem()`], except for `src/main.rs` where it is the package name
+        fn insert_if_unconfigured(
+            name: Option<String>,
+            path: &Path,
+            r#type: ArtifactType,
+            artifacts: &mut HashMap<String, Artifact>,
+        ) {
+            // Only insert the detected binary if there isn't another artifact already configuring this file path
+            if artifacts.values().any(|bin| bin.path == path) {
+                println!("Already configuring {path:?}");
+                return;
+            }
+
+            let name =
+                name.unwrap_or_else(|| path.file_stem().unwrap().to_str().unwrap().to_owned());
+
+            // Only insert the detected binary if an artifact with the same name wasn't yet configured
+            artifacts.entry(name.clone()).or_insert(Artifact {
+                name,
+                path: path.to_owned(),
+                r#type,
+            });
+        }
+
+        // Parse all autobins
+        if parsed_manifest
+            .package
+            .as_ref()
+            .map_or(true, |p| p.autobins)
+        {
+            // Special-case for the main binary of a package
+            if root_dir.join(main_bin_path).is_file() {
+                insert_if_unconfigured(
+                    Some(package.clone()),
+                    main_bin_path,
+                    ArtifactType::Bin,
+                    &mut bin_artifacts,
+                );
+            }
+
             for file in utils::list_rust_files(&root_dir.join("src").join("bin"))? {
-                artifacts.push(Artifact::Root(file));
-            }
-        } else {
-            for bin in &args.bin {
-                artifacts.push(Artifact::Root(bin.into()));
+                let file = file.strip_prefix(root_dir).unwrap();
+
+                insert_if_unconfigured(None, file, ArtifactType::Bin, &mut bin_artifacts);
             }
         }
-        if artifacts.is_empty() {
-            artifacts.push(Artifact::Root(package.clone()));
+
+        // Parse all autoexamples
+        if parsed_manifest
+            .package
+            .as_ref()
+            .map_or(true, |p| p.autoexamples)
+        {
+            for file in utils::list_rust_files(&root_dir.join("examples"))? {
+                let file = file.strip_prefix(root_dir).unwrap();
+
+                insert_if_unconfigured(None, file, ArtifactType::Example, &mut example_artifacts);
+            }
         }
+
+        let mut lib_artifact = parsed_manifest
+            .lib
+            .as_ref()
+            .map(|lib| Artifact {
+                // The library is either configured with sensible defaults
+                name: lib.name.as_ref().unwrap_or(package).clone(),
+                path: lib.path.as_deref().unwrap_or(main_lib_path).to_owned(),
+                r#type: ArtifactType::Lib,
+            })
+            .or_else(|| {
+                // Or autodetected with the same defaults, if that default path exists
+                root_dir.join(main_lib_path).is_file().then(|| Artifact {
+                    name: package.clone(),
+                    path: main_lib_path.to_owned(),
+                    r#type: ArtifactType::Lib,
+                })
+            });
+
+        // Filtering based on arguments
+        // https://doc.rust-lang.org/cargo/reference/cargo-targets.html#binaries
+
+        let specific_target_selected = args.specific_target_selected();
+
+        if specific_target_selected {
+            if !args.lib {
+                lib_artifact = None;
+            }
+
+            if !args.bins {
+                bin_artifacts.retain(|a, _| args.bin.contains(a));
+            }
+
+            if !args.examples {
+                example_artifacts.retain(|a, _| args.example.contains(a));
+            }
+        }
+
         let host_triple = current_platform::CURRENT_PLATFORM.to_owned();
         let profile = args.profile();
         Ok(Self {
@@ -141,7 +280,9 @@ impl Subcommand {
             target_dir,
             host_triple,
             profile,
-            artifacts,
+            lib_artifact,
+            bin_artifacts: bin_artifacts.into_values().collect(),
+            example_artifacts: example_artifacts.into_values().collect(),
             config,
         })
     }
@@ -170,8 +311,11 @@ impl Subcommand {
         &self.profile
     }
 
-    pub fn artifacts(&self) -> &[Artifact] {
-        &self.artifacts
+    pub fn artifacts(&self) -> impl Iterator<Item = &Artifact> {
+        self.lib_artifact
+            .iter()
+            .chain(&self.bin_artifacts)
+            .chain(&self.example_artifacts)
     }
 
     pub fn target_dir(&self) -> &Path {
@@ -208,6 +352,8 @@ impl Subcommand {
     ) -> PathBuf {
         let triple = target.unwrap_or_else(|| self.host_triple());
         let file_name = artifact.file_name(crate_type, triple);
-        self.build_dir(target).join(artifact).join(file_name)
+        self.build_dir(target)
+            .join(artifact.build_dir())
+            .join(file_name)
     }
 }
