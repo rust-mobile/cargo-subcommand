@@ -21,12 +21,14 @@ pub struct Subcommand {
 
 impl Subcommand {
     pub fn new(args: Args) -> Result<Self, Error> {
+        // TODO: support multiple packages properly
+        assert!(args.package.len() < 2);
         let (manifest_path, package) = utils::find_package(
             &args
                 .manifest_path
                 .clone()
                 .unwrap_or_else(|| std::env::current_dir().unwrap()),
-            args.package.as_deref(),
+            args.package.get(0).map(|s| s.as_str()),
         )?;
         let root_dir = manifest_path.parent().unwrap();
 
