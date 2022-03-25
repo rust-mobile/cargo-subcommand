@@ -43,6 +43,13 @@ impl Subcommand {
         )?;
         let root_dir = manifest_path.parent().unwrap();
 
+        // TODO: Find, parse, and merge _all_ config files following the hierarchical structure:
+        // https://doc.rust-lang.org/cargo/reference/config.html#hierarchical-structure
+        let config = LocalizedConfig::find_cargo_config_for_workspace(&root_dir)?;
+        if let Some(config) = &config {
+            config.set_env_vars().unwrap();
+        }
+
         let target_dir = args
             .target_dir
             .clone()
@@ -58,13 +65,6 @@ impl Subcommand {
                     target_dir
                 }
             });
-
-        // TODO: Find, parse, and merge _all_ config files following the hierarchical structure:
-        // https://doc.rust-lang.org/cargo/reference/config.html#hierarchical-structure
-        let config = LocalizedConfig::find_cargo_config_for_workspace(&root_dir)?;
-        if let Some(config) = &config {
-            config.set_env_vars().unwrap();
-        }
 
         let target_dir = target_dir.unwrap_or_else(|| {
             utils::find_workspace(&manifest_path, &package)
