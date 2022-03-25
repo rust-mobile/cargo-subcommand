@@ -1,4 +1,5 @@
-use crate::artifact::Artifact;
+use crate::args::Args;
+use crate::artifact::{Artifact, CrateType};
 use crate::error::Error;
 use crate::profile::Profile;
 use crate::{utils, LocalizedConfig};
@@ -8,89 +9,30 @@ use std::process::Command;
 
 #[derive(Debug)]
 pub struct Subcommand {
-    cmd: String,
-    args: Vec<String>,
+    args: Args,
     package: String,
     manifest: PathBuf,
     target_dir: PathBuf,
-    target: Option<String>,
     host_triple: String,
     profile: Profile,
     artifacts: Vec<Artifact>,
-    quiet: bool,
     config: Option<LocalizedConfig>,
 }
 
 impl Subcommand {
-    pub fn new<F: FnMut(&str, Option<&str>) -> Result<bool, Error>>(
-        args: impl Iterator<Item = String>,
-        subcommand: &'static str,
-        mut parser: F,
-    ) -> Result<Self, Error> {
-        let mut args = args.peekable();
-        args.next().ok_or(Error::InvalidArgs)?;
-        let arg = args.next().ok_or(Error::InvalidArgs)?;
-        if arg != subcommand {
-            return Err(Error::InvalidArgs);
-        }
-        let cmd = args.next().unwrap_or_else(|| "--help".to_string());
-        let mut cargo_args = Vec::new();
-        let mut target = None;
-        let mut profile = Profile::Dev;
-        let mut artifacts = Vec::new();
-        let mut target_dir = None;
-        let mut manifest_path = None;
-        let mut package = None;
-        let mut examples = false;
-        let mut bins = false;
-        let mut quiet = false;
-        while let Some(mut name) = args.next() {
-            let value = if let Some(position) = name.as_str().find('=') {
-                name.remove(position); // drop the '=' sign so we can cleanly split the string in two
-                Some(name.split_off(position))
-            } else if let Some(value) = args.peek() {
-                if !value.starts_with('-') {
-                    args.next()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let value_ref = value.as_deref();
-            let mut matched = true;
-            match (name.as_str(), value_ref) {
-                ("--quiet", None) => quiet = true,
-                ("--release", None) => profile = Profile::Release,
-                ("--target", Some(value)) => target = Some(value.to_string()),
-                ("--profile", Some("dev")) => profile = Profile::Dev,
-                ("--profile", Some("release")) => profile = Profile::Release,
-                ("--profile", Some(value)) => profile = Profile::Custom(value.to_string()),
-                ("--example", Some(value)) => artifacts.push(Artifact::Example(value.to_string())),
-                ("--examples", None) => examples = true,
-                ("--bin", Some(value)) => artifacts.push(Artifact::Root(value.to_string())),
-                ("--bins", None) => bins = true,
-                ("--package", Some(value)) | ("-p", Some(value)) => {
-                    package = Some(value.to_string())
-                }
-                ("--target-dir", Some(value)) => target_dir = Some(PathBuf::from(value)),
-                ("--manifest-path", Some(value)) => manifest_path = Some(PathBuf::from(value)),
-                _ => matched = false,
-            }
-            if matched || !parser(name.as_str(), value_ref)? {
-                cargo_args.push(name);
-                if let Some(value) = value {
-                    cargo_args.push(value);
-                }
-            }
-        }
-        let (manifest, package) = utils::find_package(
-            &manifest_path.unwrap_or_else(|| std::env::current_dir().unwrap()),
-            package.as_deref(),
+    pub fn new(args: Args) -> Result<Self, Error> {
+        let (manifest_path, package) = utils::find_package(
+            &args
+                .manifest_path
+                .clone()
+                .unwrap_or_else(|| std::env::current_dir().unwrap()),
+            args.package.as_deref(),
         )?;
-        let root_dir = manifest.parent().unwrap();
+        let root_dir = manifest_path.parent().unwrap();
 
-        let target_dir = target_dir
+        let target_dir = args
+            .target_dir
+            .clone()
             .or_else(|| {
                 std::env::var_os("CARGO_BUILD_TARGET_DIR")
                     .or_else(|| std::env::var_os("CARGO_TARGET_DIR"))
@@ -112,21 +54,31 @@ impl Subcommand {
         }
 
         let target_dir = target_dir.unwrap_or_else(|| {
-            utils::find_workspace(&manifest, &package)
+            utils::find_workspace(&manifest_path, &package)
                 .unwrap()
-                .unwrap_or_else(|| manifest.clone())
+                .unwrap_or_else(|| manifest_path.clone())
                 .parent()
                 .unwrap()
                 .join(utils::get_target_dir_name(config.as_deref()).unwrap())
         });
-        if examples {
+
+        let mut artifacts = vec![];
+        if args.examples {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
                 artifacts.push(Artifact::Example(file));
             }
+        } else {
+            for example in &args.example {
+                artifacts.push(Artifact::Example(example.into()));
+            }
         }
-        if bins {
+        if args.bins {
             for file in utils::list_rust_files(&root_dir.join("src").join("bin"))? {
                 artifacts.push(Artifact::Root(file));
+            }
+        } else {
+            for bin in &args.bin {
+                artifacts.push(Artifact::Root(bin.into()));
             }
         }
         if artifacts.is_empty() {
@@ -142,26 +94,20 @@ impl Subcommand {
             .find(|l| l.starts_with("host: "))
             .map(|l| l[6..].to_string())
             .ok_or(Error::RustcNotFound)?;
+        let profile = args.profile();
         Ok(Self {
-            cmd,
-            args: cargo_args,
+            args,
             package,
-            manifest,
+            manifest: manifest_path,
             target_dir,
-            target,
             host_triple,
             profile,
             artifacts,
-            quiet,
             config,
         })
     }
 
-    pub fn cmd(&self) -> &str {
-        &self.cmd
-    }
-
-    pub fn args(&self) -> &[String] {
+    pub fn args(&self) -> &Args {
         &self.args
     }
 
@@ -174,7 +120,7 @@ impl Subcommand {
     }
 
     pub fn target(&self) -> Option<&str> {
-        self.target.as_deref()
+        self.args.target.as_deref()
     }
 
     pub fn profile(&self) -> &Profile {
@@ -194,44 +140,31 @@ impl Subcommand {
     }
 
     pub fn quiet(&self) -> bool {
-        self.quiet
+        self.args.quiet
     }
 
     pub fn config(&self) -> Option<&LocalizedConfig> {
         self.config.as_ref()
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_separator_space() {
-        let args = [
-            "cargo",
-            "subcommand",
-            "build",
-            "--target",
-            "x86_64-unknown-linux-gnu",
-        ]
-        .iter()
-        .map(|s| s.to_string());
-        let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
-        assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
+    pub fn build_dir(&self, target: Option<&str>) -> PathBuf {
+        let target_dir = dunce::simplified(self.target_dir()).to_path_buf();
+        let arch_dir = if let Some(target) = target {
+            target_dir.join(target)
+        } else {
+            target_dir
+        };
+        arch_dir.join(self.profile())
     }
 
-    #[test]
-    fn test_separator_equals() {
-        let args = [
-            "cargo",
-            "subcommand",
-            "build",
-            "--target=x86_64-unknown-linux-gnu",
-        ]
-        .iter()
-        .map(|s| s.to_string());
-        let cmd = Subcommand::new(args, "subcommand", |_, _| Ok(false)).unwrap();
-        assert_eq!(cmd.target(), Some("x86_64-unknown-linux-gnu"));
+    pub fn artifact(
+        &self,
+        artifact: &Artifact,
+        target: Option<&str>,
+        crate_type: CrateType,
+    ) -> PathBuf {
+        let triple = target.unwrap_or_else(|| self.host_triple());
+        let file_name = artifact.file_name(crate_type, triple);
+        self.build_dir(target).join(artifact).join(file_name)
     }
 }
