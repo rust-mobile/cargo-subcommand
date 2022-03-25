@@ -68,6 +68,7 @@ impl Args {
         if self.quiet {
             cmd.arg("--quiet");
         }
+
         for package in &self.package {
             cmd.arg("--package").arg(package);
         }

@@ -22,7 +22,18 @@ pub struct Subcommand {
 impl Subcommand {
     pub fn new(args: Args) -> Result<Self, Error> {
         // TODO: support multiple packages properly
-        assert!(args.package.len() < 2);
+        assert!(
+            args.package.len() < 2,
+            "Multiple packages are not supported yet by `cargo-subcommand`"
+        );
+        assert!(
+            !args.workspace,
+            "`--workspace` is not supported yet by `cargo-subcommand`"
+        );
+        assert!(
+            args.exclude.is_empty(),
+            "`--exclude` is not supported yet by `cargo-subcommand`"
+        );
         let (manifest_path, package) = utils::find_package(
             &args
                 .manifest_path
@@ -150,11 +161,11 @@ impl Subcommand {
     }
 
     pub fn build_dir(&self, target: Option<&str>) -> PathBuf {
-        let target_dir = dunce::simplified(self.target_dir()).to_path_buf();
+        let target_dir = dunce::simplified(self.target_dir());
         let arch_dir = if let Some(target) = target {
             target_dir.join(target)
         } else {
-            target_dir
+            target_dir.to_path_buf()
         };
         arch_dir.join(self.profile())
     }
