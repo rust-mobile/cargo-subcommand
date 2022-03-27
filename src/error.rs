@@ -9,6 +9,7 @@ pub enum Error {
     InvalidArgs,
     ManifestNotFound,
     RustcNotFound,
+    ManifestPathNotFound,
     GlobPatternError(&'static str),
     Glob(GlobError),
     Io(PathBuf, IoError),
@@ -20,6 +21,7 @@ impl Display for Error {
         f.write_str(match self {
             Self::InvalidArgs => "Invalid args.",
             Self::ManifestNotFound => "Didn't find Cargo.toml.",
+            Self::ManifestPathNotFound => "The manifest-path must be a path to a Cargo.toml file",
             Self::RustcNotFound => "Didn't find rustc.",
             Self::GlobPatternError(error) => error,
             Self::Glob(error) => return error.fmt(f),
