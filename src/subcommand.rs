@@ -3,6 +3,7 @@ use crate::artifact::{Artifact, CrateType};
 use crate::error::Error;
 use crate::profile::Profile;
 use crate::{utils, LocalizedConfig};
+use std::ffi::OsStr;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -34,11 +35,21 @@ impl Subcommand {
             args.exclude.is_empty(),
             "`--exclude` is not supported yet by `cargo-subcommand`"
         );
+
+        let manifest_path = args
+            .manifest_path
+            .clone()
+            .map(|path| {
+                if path.file_name() != Some(OsStr::new("Cargo.toml")) || !path.is_file() {
+                    Err(Error::ManifestPathNotFound)
+                } else {
+                    Ok(path)
+                }
+            })
+            .transpose()?;
+
         let (manifest_path, package) = utils::find_package(
-            &args
-                .manifest_path
-                .clone()
-                .unwrap_or_else(|| std::env::current_dir().unwrap()),
+            &manifest_path.unwrap_or_else(|| std::env::current_dir().unwrap()),
             args.package.get(0).map(|s| s.as_str()),
         )?;
         let root_dir = manifest_path.parent().unwrap();
