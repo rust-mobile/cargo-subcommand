@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::{Error, Result};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -9,7 +9,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn parse_from_toml(path: &Path) -> Result<Self, Error> {
+    pub fn parse_from_toml(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path).map_err(|e| Error::Io(path.to_owned(), e))?;
         toml::from_str(&contents).map_err(|e| Error::Toml(path.to_owned(), e))
     }

@@ -1,10 +1,10 @@
 use crate::config::Config;
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::manifest::Manifest;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
+pub fn list_rust_files(dir: &Path) -> Result<Vec<String>> {
     let mut files = Vec::new();
     if dir.exists() && dir.is_dir() {
         let entries = std::fs::read_dir(dir).map_err(|e| Error::Io(dir.to_owned(), e))?;
@@ -19,7 +19,7 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>, Error> {
     Ok(files)
 }
 
-fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<PathBuf>, Error> {
+fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<PathBuf>> {
     let workspace_dir = manifest.parent().unwrap();
     for member in members {
         for manifest_dir in glob::glob(workspace_dir.join(member).to_str().unwrap())? {
@@ -35,7 +35,7 @@ fn member(manifest: &Path, members: &[String], package: &str) -> Result<Option<P
     Ok(None)
 }
 
-pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String), Error> {
+pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)> {
     let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
     for manifest_path in path
         .ancestors()
@@ -44,15 +44,17 @@ pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)
     {
         let manifest = Manifest::parse_from_toml(&manifest_path)?;
         if let Some(p) = manifest.package.as_ref() {
-            if let (Some(n1), n2) = (name, &p.name) {
-                if n1 == n2 {
+            if let Some(name) = name {
+                if name == p.name {
                     return Ok((manifest_path, p.name.clone()));
                 }
             } else {
                 return Ok((manifest_path, p.name.clone()));
             }
         }
-        if let (Some(w), Some(name)) = (manifest.workspace.as_ref(), name) {
+        if let Some(w) = manifest.workspace.as_ref() {
+            // TODO: This should also work if name is None - then all packages should simply be returned
+            let name = name.ok_or(Error::MultiplePackagesNotSupported)?;
             if let Some(manifest_path) = member(&manifest_path, &w.members, name)? {
                 return Ok((manifest_path, name.to_string()));
             }
@@ -61,7 +63,7 @@ pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)
     Err(Error::ManifestNotFound)
 }
 
-pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Error> {
+pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>> {
     let dir = manifest.parent().unwrap();
     for manifest_path in dir
         .ancestors()
@@ -81,7 +83,7 @@ pub fn find_workspace(manifest: &Path, name: &str) -> Result<Option<PathBuf>, Er
 /// Returns the [`target-dir`] configured in `.cargo/config.toml` or `"target"` if not set.
 ///
 /// [`target-dir`]: https://doc.rust-lang.org/cargo/reference/config.html#buildtarget-dir
-pub fn get_target_dir_name(config: Option<&Config>) -> Result<String, Error> {
+pub fn get_target_dir_name(config: Option<&Config>) -> Result<String> {
     if let Some(config) = config {
         if let Some(build) = config.build.as_ref() {
             if let Some(target_dir) = &build.target_dir {

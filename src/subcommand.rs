@@ -1,6 +1,6 @@
 use crate::args::Args;
 use crate::artifact::{Artifact, CrateType};
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::profile::Profile;
 use crate::{utils, LocalizedConfig};
 use std::ffi::OsStr;
@@ -21,7 +21,7 @@ pub struct Subcommand {
 }
 
 impl Subcommand {
-    pub fn new(args: Args) -> Result<Self, Error> {
+    pub fn new(args: Args) -> Result<Self> {
         // TODO: support multiple packages properly
         assert!(
             args.package.len() < 2,
