@@ -1,5 +1,5 @@
 use glob::{GlobError, PatternError};
-use std::fmt::{Display, Formatter, Result};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::Error as IoError;
 use std::path::PathBuf;
 use toml::de::Error as TomlError;
@@ -10,18 +10,24 @@ pub enum Error {
     ManifestNotFound,
     RustcNotFound,
     ManifestPathNotFound,
+    MultiplePackagesNotSupported,
     GlobPatternError(&'static str),
     Glob(GlobError),
     Io(PathBuf, IoError),
     Toml(PathBuf, TomlError),
 }
 
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         f.write_str(match self {
             Self::InvalidArgs => "Invalid args.",
             Self::ManifestNotFound => "Didn't find Cargo.toml.",
             Self::ManifestPathNotFound => "The manifest-path must be a path to a Cargo.toml file",
+            Self::MultiplePackagesNotSupported => {
+                "Multiple packages are not yet supported (ie. in a `[workspace]`). Use `-p` to select a specific package."
+            }
             Self::RustcNotFound => "Didn't find rustc.",
             Self::GlobPatternError(error) => error,
             Self::Glob(error) => return error.fmt(f),

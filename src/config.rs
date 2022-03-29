@@ -17,6 +17,8 @@ pub enum EnvError {
     Var(VarError),
 }
 
+pub type Result<T, E = EnvError> = std::result::Result<T, E>;
+
 impl From<VarError> for EnvError {
     fn from(var: VarError) -> Self {
         Self::Var(var)
@@ -33,8 +35,6 @@ impl Display for EnvError {
 }
 
 impl std::error::Error for EnvError {}
-
-type Result<T, E = EnvError> = std::result::Result<T, E>;
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
