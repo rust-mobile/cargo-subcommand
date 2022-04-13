@@ -4,9 +4,7 @@ use crate::error::{Error, Result};
 use crate::profile::Profile;
 use crate::{utils, LocalizedConfig};
 use std::ffi::OsStr;
-use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 #[derive(Debug)]
 pub struct Subcommand {
