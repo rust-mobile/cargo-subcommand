@@ -4,9 +4,7 @@ use crate::error::{Error, Result};
 use crate::profile::Profile;
 use crate::{utils, LocalizedConfig};
 use std::ffi::OsStr;
-use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 #[derive(Debug)]
 pub struct Subcommand {
@@ -108,16 +106,7 @@ impl Subcommand {
         if artifacts.is_empty() {
             artifacts.push(Artifact::Root(package.clone()));
         }
-        let host_triple = Command::new("rustc")
-            .arg("-vV")
-            .output()
-            .map_err(|_| Error::RustcNotFound)?
-            .stdout
-            .lines()
-            .map(|l| l.unwrap())
-            .find(|l| l.starts_with("host: "))
-            .map(|l| l[6..].to_string())
-            .ok_or(Error::RustcNotFound)?;
+        let host_triple = current_platform::CURRENT_PLATFORM.to_owned();
         let profile = args.profile();
         Ok(Self {
             args,
