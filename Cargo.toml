@@ -12,8 +12,9 @@ default = ["clap"]
 
 [dependencies]
 clap = { version = "3.1.6", optional = true, features = ["derive"] }
+current_platform = "0.2.0"
 dunce = "1.0.1"
 glob = "0.3.0"
 serde = { version = "1.0.123", features = ["derive"] }
 toml = "0.5.8"
-current_platform = "0.2.0"
+
