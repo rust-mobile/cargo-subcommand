@@ -36,7 +36,7 @@ impl Display for EnvError {
 
 impl std::error::Error for EnvError {}
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     pub build: Option<Build>,
@@ -117,7 +117,7 @@ impl LocalizedConfig {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub struct Build {
     pub target_dir: Option<String>,
@@ -125,7 +125,7 @@ pub struct Build {
 
 /// Serializable environment variable in cargo config, configurable as per
 /// <https://doc.rust-lang.org/cargo/reference/config.html#env>,
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(untagged, rename_all = "kebab-case")]
 pub enum EnvOption {
     String(String),

@@ -1,5 +1,5 @@
 # cargo-subcommand library for building subcommands
-Is used by `cargo-ndk` and `cargo-flutter`.
+Is used by `cargo-apk` and `cargo-flutter`.
 
 # License
 Copyright 2020 David Craven <david@craven.ch>
