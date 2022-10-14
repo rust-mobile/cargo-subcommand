@@ -1,6 +1,6 @@
 [package]
 name = "cargo-subcommand"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["David Craven <david@craven.ch>", "Marijn Suijten <marijn@traverseresearch.nl>"]
 edition = "2018"
 description = "Library for creating cargo subcommands."
@@ -11,9 +11,9 @@ license = "ISC"
 default = ["clap"]
 
 [dependencies]
-clap = { version = "3.2.22", optional = true, features = ["derive"] }
+clap = { version = "4.0.15", optional = true, features = ["derive"] }
 current_platform = "0.2.0"
-dunce = "1.0.2"
+dunce = "1.0.3"
 glob = "0.3.0"
-serde = { version = "1.0.144", features = ["derive"] }
+serde = { version = "1.0.145", features = ["derive"] }
 toml = "0.5.9"
