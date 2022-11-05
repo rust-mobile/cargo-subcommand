@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 pub struct Subcommand {
     args: Args,
     package: String,
+    workspace_manifest: Option<PathBuf>,
     manifest: PathBuf,
     target_dir: PathBuf,
     host_triple: String,
@@ -57,14 +58,18 @@ impl Subcommand {
         // or contains the given `--manifest-path` as member.
         let workspace_manifest = utils::find_workspace(&search_path)?;
 
-        let (manifest_path, package) =
-            if let Some((workspace_manifest_path, workspace)) = &workspace_manifest {
-                // If a workspace was found, find packages relative to it
-                utils::find_package_in_workspace(workspace_manifest_path, workspace, package)?
-            } else {
-                // Otherwise scan up the directories
-                utils::find_package(&search_path, package)?
-            };
+        let (manifest_path, manifest) = if let Some((workspace_manifest_path, workspace)) =
+            &workspace_manifest
+        {
+            // If a workspace was found, find packages relative to it
+            utils::find_package_manifest_in_workspace(workspace_manifest_path, workspace, package)?
+        } else {
+            // Otherwise scan up the directories
+            utils::find_package_manifest(&search_path, package)?
+        };
+
+        // The manifest is known to contain a package at this point
+        let package = &manifest.package.as_ref().unwrap().name;
 
         let root_dir = manifest_path.parent().unwrap();
 
@@ -127,7 +132,8 @@ impl Subcommand {
         let profile = args.profile();
         Ok(Self {
             args,
-            package,
+            package: package.clone(),
+            workspace_manifest: workspace_manifest.map(|(path, _)| path),
             manifest: manifest_path,
             target_dir,
             host_triple,
@@ -143,6 +149,10 @@ impl Subcommand {
 
     pub fn package(&self) -> &str {
         &self.package
+    }
+
+    pub fn workspace_manifest(&self) -> Option<&Path> {
+        self.workspace_manifest.as_deref()
     }
 
     pub fn manifest(&self) -> &Path {
