@@ -25,6 +25,7 @@ impl Subcommand {
             args.package.len() < 2,
             "Multiple packages are not supported yet by `cargo-subcommand`"
         );
+        let package = args.package.get(0).map(|s| s.as_str());
         assert!(
             !args.workspace,
             "`--workspace` is not supported yet by `cargo-subcommand`"
@@ -46,15 +47,30 @@ impl Subcommand {
             })
             .transpose()?;
 
-        let (manifest_path, package) = utils::find_package(
-            &manifest_path.unwrap_or_else(|| std::env::current_dir().unwrap()),
-            args.package.get(0).map(|s| s.as_str()),
-        )?;
+        let search_path = manifest_path.map_or_else(
+            || std::env::current_dir().unwrap(),
+            |manifest_path| manifest_path.parent().unwrap().to_owned(),
+        );
+
+        // Scan the given and all parent directories for a Cargo.toml containing a workspace
+        // TODO: If set, validate that the found workspace is either the given `--manifest-path`,
+        // or contains the given `--manifest-path` as member.
+        let workspace_manifest = utils::find_workspace(&search_path)?;
+
+        let (manifest_path, package) =
+            if let Some((workspace_manifest_path, workspace)) = &workspace_manifest {
+                // If a workspace was found, find packages relative to it
+                utils::find_package_in_workspace(workspace_manifest_path, workspace, package)?
+            } else {
+                // Otherwise scan up the directories
+                utils::find_package(&search_path, package)?
+            };
+
         let root_dir = manifest_path.parent().unwrap();
 
         // TODO: Find, parse, and merge _all_ config files following the hierarchical structure:
         // https://doc.rust-lang.org/cargo/reference/config.html#hierarchical-structure
-        let config = LocalizedConfig::find_cargo_config_for_workspace(&root_dir)?;
+        let config = LocalizedConfig::find_cargo_config_for_workspace(root_dir)?;
         if let Some(config) = &config {
             config.set_env_vars().unwrap();
         }
@@ -76,9 +92,10 @@ impl Subcommand {
             });
 
         let target_dir = target_dir.unwrap_or_else(|| {
-            utils::find_workspace(&manifest_path, &package)
-                .unwrap()
-                .unwrap_or_else(|| manifest_path.clone())
+            workspace_manifest
+                .as_ref()
+                .map(|(path, _)| path)
+                .unwrap_or_else(|| &manifest_path)
                 .parent()
                 .unwrap()
                 .join(utils::get_target_dir_name(config.as_deref()).unwrap())
