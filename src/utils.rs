@@ -19,32 +19,32 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>> {
     Ok(files)
 }
 
-fn match_package_name(manifest: &Manifest, name: Option<&str>) -> Option<String> {
+fn match_package_name(manifest: &Manifest, name: Option<&str>) -> bool {
     if let Some(p) = &manifest.package {
         if let Some(name) = name {
             if name == p.name {
-                return Some(p.name.clone());
+                return true;
             }
         } else {
-            return Some(p.name.clone());
+            return true;
         }
     }
 
-    None
+    false
 }
 
 /// Tries to find a package by the given `name` in the [workspace root] or member
 /// of the given [workspace] [`Manifest`].
 ///
-/// When a workspace is not detected, call [`find_package()`] instead.
+/// When a workspace is not detected, call [`find_package_manifest()`] instead.
 ///
 /// [workspace root]: https://doc.rust-lang.org/cargo/reference/workspaces.html#root-package
 /// [workspace]: https://doc.rust-lang.org/cargo/reference/workspaces.html#workspaces
-pub fn find_package_in_workspace(
+pub fn find_package_manifest_in_workspace(
     workspace_manifest_path: &Path,
     workspace_manifest: &Manifest,
     name: Option<&str>,
-) -> Result<(PathBuf, String)> {
+) -> Result<(PathBuf, Manifest)> {
     let workspace = workspace_manifest
         .workspace
         .as_ref()
@@ -57,8 +57,11 @@ pub fn find_package_in_workspace(
     let name = name.ok_or(Error::MultiplePackagesNotSupported)?;
 
     // Check if the workspace manifest also contains a [package]
-    if let Some(package) = match_package_name(workspace_manifest, Some(name)) {
-        return Ok((workspace_manifest_path.to_owned(), package));
+    if match_package_name(workspace_manifest, Some(name)) {
+        return Ok((
+            workspace_manifest_path.to_owned(),
+            workspace_manifest.clone(),
+        ));
     }
 
     // Check all member packages inside the workspace
@@ -73,8 +76,8 @@ pub fn find_package_in_workspace(
                 return Err(Error::UnexpectedWorkspace(manifest_path));
             }
 
-            if let Some(package) = match_package_name(&manifest, Some(name)) {
-                return Ok((manifest_path, package));
+            if match_package_name(&manifest, Some(name)) {
+                return Ok((manifest_path, manifest));
             }
         }
     }
@@ -84,9 +87,9 @@ pub fn find_package_in_workspace(
 
 /// Recursively walk up the directories until finding a `Cargo.toml`
 ///
-/// When a workspace has been detected, [`find_package_in_workspace()`] to find packages
+/// When a workspace has been detected, [`find_package_manifest_in_workspace()`] to find packages
 /// instead (that are members of the given workspace).
-pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)> {
+pub fn find_package_manifest(path: &Path, name: Option<&str>) -> Result<(PathBuf, Manifest)> {
     let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
     for manifest_path in path
         .ancestors()
@@ -100,8 +103,8 @@ pub fn find_package(path: &Path, name: Option<&str>) -> Result<(PathBuf, String)
             return Err(Error::UnexpectedWorkspace(manifest_path));
         }
 
-        if let Some(package) = match_package_name(&manifest, name) {
-            return Ok((manifest_path, package));
+        if match_package_name(&manifest, name) {
+            return Ok((manifest_path, manifest));
         }
     }
     Err(Error::ManifestNotFound)
