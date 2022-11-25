@@ -16,7 +16,11 @@ impl Manifest {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Workspace {
+    #[serde(default)]
+    pub default_members: Vec<String>,
+    #[serde(default)]
     pub members: Vec<String>,
 }
 
