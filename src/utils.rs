@@ -49,7 +49,25 @@ pub fn find_package_manifest_in_workspace(
         .workspace
         .as_ref()
         .ok_or(Error::ManifestNotAWorkspace)?;
-    let workspace_root = workspace_manifest_path.parent().unwrap();
+    let workspace_root = canonicalize(workspace_manifest_path.parent().unwrap())?;
+
+    // Check all member packages inside the workspace
+    let mut all_members = HashMap::new();
+
+    for member in &workspace.members {
+        for manifest_dir in glob::glob(workspace_root.join(member).to_str().unwrap())? {
+            let manifest_dir = manifest_dir?;
+            let manifest_path = manifest_dir.join("Cargo.toml");
+            let manifest = Manifest::parse_from_toml(&manifest_path)?;
+
+            // Workspace members cannot themselves be/contain a new workspace
+            if manifest.workspace.is_some() {
+                return Err(Error::UnexpectedWorkspace(manifest_path));
+            }
+
+            all_members.insert(manifest_dir, (manifest_path, manifest));
+        }
+    }
 
     match selector {
         PackageSelector::ByName(name) => {
@@ -64,23 +82,13 @@ pub fn find_package_manifest_in_workspace(
             }
 
             // Check all member packages inside the workspace
-            for member in &workspace.members {
-                for manifest_dir in glob::glob(workspace_root.join(member).to_str().unwrap())? {
-                    let manifest_path = manifest_dir?.join("Cargo.toml");
-                    let manifest = Manifest::parse_from_toml(&manifest_path)?;
-
-                    // Workspace members cannot themselves be/contain a new workspace
-                    if manifest.workspace.is_some() {
-                        return Err(Error::UnexpectedWorkspace(manifest_path));
+            for (_manifest_dir, (manifest_path, manifest)) in all_members {
+                if let Some(package) = &manifest.package {
+                    if package.name == name {
+                        return Ok((manifest_path, manifest));
                     }
-
-                    if let Some(package) = &manifest.package {
-                        if package.name == name {
-                            return Ok((manifest_path, manifest));
-                        }
-                    } else {
-                        return Err(Error::NoPackageInManifest(manifest_path));
-                    }
+                } else {
+                    return Err(Error::NoPackageInManifest(manifest_path));
                 }
             }
 
@@ -91,25 +99,6 @@ pub fn find_package_manifest_in_workspace(
         }
         PackageSelector::ByPath(path) => {
             let path = canonicalize(path)?;
-            let workspace_root = canonicalize(workspace_root)?;
-
-            // Check all member packages inside the workspace
-            let mut all_members = HashMap::new();
-
-            for member in &workspace.members {
-                for manifest_dir in glob::glob(workspace_root.join(member).to_str().unwrap())? {
-                    let manifest_dir = manifest_dir?;
-                    let manifest_path = manifest_dir.join("Cargo.toml");
-                    let manifest = Manifest::parse_from_toml(&manifest_path)?;
-
-                    // Workspace members cannot themselves be/contain a new workspace
-                    if manifest.workspace.is_some() {
-                        return Err(Error::UnexpectedWorkspace(manifest_path));
-                    }
-
-                    all_members.insert(manifest_dir, (manifest_path, manifest));
-                }
-            }
 
             // Find the closest member based on the given path
             Ok(path
