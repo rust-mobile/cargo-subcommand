@@ -19,6 +19,13 @@ pub fn list_rust_files(dir: &Path) -> Result<Vec<String>> {
     Ok(files)
 }
 
+fn canonicalize(mut path: &Path) -> Result<PathBuf> {
+    if path == Path::new("") {
+        path = Path::new(".");
+    }
+    dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))
+}
+
 /// Tries to find a package by the given `name` in the [workspace root] or member
 /// of the given [workspace] [`Manifest`].
 ///
@@ -79,7 +86,7 @@ pub fn find_package_manifest_in_workspace(
 /// When a workspace has been detected, use [`find_package_manifest_in_workspace()`] to find packages
 /// instead (that are members of the given workspace) when the user specified a package name (with `-p`).
 pub fn find_package_manifest(path: &Path, name: Option<&str>) -> Result<(PathBuf, Manifest)> {
-    let path = dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))?;
+    let path = canonicalize(path)?;
     let manifest_path = path
         .ancestors()
         .map(|dir| dir.join("Cargo.toml"))
