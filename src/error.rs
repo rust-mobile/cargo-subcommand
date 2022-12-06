@@ -15,6 +15,7 @@ pub enum Error {
     Glob(GlobError),
     UnexpectedWorkspace(PathBuf),
     NoPackageInManifest(PathBuf),
+    MissingWorkspaceMember(PathBuf),
     PackageNotFound(PathBuf, String),
     Io(PathBuf, IoError),
     Toml(PathBuf, TomlError),
@@ -42,6 +43,13 @@ impl Display for Error {
                     f,
                     "Failed to parse manifest at `{}`: virtual manifests must be configured with `[workspace]`",
                     manifest.display()
+                )
+            }
+            Self::MissingWorkspaceMember(member) => {
+                return write!(
+                    f,
+                    "Failed to load manifest for workspace member `{}`",
+                    member.display()
                 )
             }
             Self::PackageNotFound(workspace, name) => {
