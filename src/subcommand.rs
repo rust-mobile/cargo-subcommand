@@ -49,23 +49,26 @@ impl Subcommand {
             .transpose()?;
 
         let search_path = manifest_path.map_or_else(
-            || std::env::current_dir().unwrap(),
-            |manifest_path| manifest_path.parent().unwrap().to_owned(),
-        );
+            || std::env::current_dir().map_err(|e| Error::Io(PathBuf::new(), e)),
+            |manifest_path| utils::canonicalize(manifest_path.parent().unwrap()),
+        )?;
 
-        // Scan the given and all parent directories for a Cargo.toml containing a workspace
-        // TODO: If set, validate that the found workspace is either the given `--manifest-path`,
-        // or contains the given `--manifest-path` as member.
+        // Scan up the directories based on --manifest-path and the working directory to find a Cargo.toml
+        let potential_manifest = utils::find_manifest(&search_path)?;
+        // Perform the same scan, but for a Cargo.toml containing [workspace]
         let workspace_manifest = utils::find_workspace(&search_path)?;
 
-        let (manifest_path, manifest) = if let Some((workspace_manifest_path, workspace)) =
-            &workspace_manifest
-        {
-            // If a workspace was found, find packages relative to it
-            utils::find_package_manifest_in_workspace(workspace_manifest_path, workspace, package)?
-        } else {
-            // Otherwise scan up the directories
-            utils::find_package_manifest(&search_path, package)?
+        let (manifest_path, manifest) = {
+            if let Some(workspace_manifest) = &workspace_manifest {
+                utils::find_package_manifest_in_workspace(
+                    workspace_manifest,
+                    potential_manifest,
+                    package,
+                )?
+            } else {
+                let (manifest_path, manifest) = potential_manifest;
+                manifest.map_nonvirtual_package(manifest_path, package)?
+            }
         };
 
         // The manifest is known to contain a package at this point
