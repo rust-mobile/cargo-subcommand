@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::error::{Error, Result};
 use crate::manifest::Manifest;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -27,50 +26,35 @@ pub fn canonicalize(mut path: &Path) -> Result<PathBuf> {
     dunce::canonicalize(path).map_err(|e| Error::Io(path.to_owned(), e))
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum PackageSelector<'a> {
-    ByName(&'a str),
-    ByPath(&'a Path),
-}
-
 /// Tries to find a package by the given `name` in the [workspace root] or member
-/// of the given [workspace] [`Manifest`].
-///
-/// When a workspace is not detected, call [`find_package_manifest()`] instead.
+/// of the given [workspace] [`Manifest`], and possibly falls back to a potential
+/// manifest based on the working directory or `--manifest-path` as found by
+/// [`find_manifest()`] and passed as argument to `potential_manifest`.
 ///
 /// [workspace root]: https://doc.rust-lang.org/cargo/reference/workspaces.html#root-package
 /// [workspace]: https://doc.rust-lang.org/cargo/reference/workspaces.html#workspaces
 pub fn find_package_manifest_in_workspace(
-    workspace_manifest_path: &Path,
-    workspace_manifest: &Manifest,
-    selector: PackageSelector<'_>,
+    (workspace_manifest_path, workspace_manifest): &(PathBuf, Manifest),
+    (potential_manifest_path, potential_manifest): (PathBuf, Manifest),
+    package_name: Option<&str>,
 ) -> Result<(PathBuf, Manifest)> {
-    let workspace = workspace_manifest
-        .workspace
-        .as_ref()
-        .ok_or(Error::ManifestNotAWorkspace)?;
-    let workspace_root = canonicalize(workspace_manifest_path.parent().unwrap())?;
+    let potential_manifest_dir = potential_manifest_path.parent().unwrap();
+    let workspace_manifest_dir = workspace_manifest_path.parent().unwrap();
 
-    // Check all member packages inside the workspace
-    let mut all_members = HashMap::new();
-
-    for member in &workspace.members {
-        for manifest_dir in glob::glob(workspace_root.join(member).to_str().unwrap())? {
-            let manifest_dir = manifest_dir?;
-            let manifest_path = manifest_dir.join("Cargo.toml");
-            let manifest = Manifest::parse_from_toml(&manifest_path)?;
-
-            // Workspace members cannot themselves be/contain a new workspace
-            if manifest.workspace.is_some() {
-                return Err(Error::UnexpectedWorkspace(manifest_path));
-            }
-
-            all_members.insert(manifest_dir, (manifest_path, manifest));
-        }
+    let workspace_members = workspace_manifest.members(workspace_manifest_dir)?;
+    // Make sure the found workspace includes the manifest "specified" by the user via --manifest-path or $PWD
+    if workspace_manifest_path != &potential_manifest_path
+        && !workspace_members.contains_key(potential_manifest_dir)
+    {
+        return Err(Error::ManifestNotInWorkspace {
+            manifest: potential_manifest_path,
+            workspace_manifest: workspace_manifest_path.clone(),
+        });
     }
 
-    match selector {
-        PackageSelector::ByName(name) => {
+    match package_name {
+        // Any package in the workspace can be used if `-p` is used
+        Some(name) => {
             // Check if the workspace manifest also contains a [package]
             if let Some(package) = &workspace_manifest.package {
                 if package.name == name {
@@ -82,44 +66,31 @@ pub fn find_package_manifest_in_workspace(
             }
 
             // Check all member packages inside the workspace
-            for (_manifest_dir, (manifest_path, manifest)) in all_members {
-                if let Some(package) = &manifest.package {
-                    if package.name == name {
-                        return Ok((manifest_path, manifest));
-                    }
-                } else {
-                    return Err(Error::NoPackageInManifest(manifest_path));
+            for (_manifest_dir, (manifest_path, manifest)) in workspace_members {
+                // .members() already checked for it having a package
+                let package = manifest.package.as_ref().unwrap();
+                if package.name == name {
+                    return Ok((manifest_path, manifest));
                 }
             }
 
             Err(Error::PackageNotFound(
-                workspace_manifest_path.into(),
-                name.into(),
+                workspace_manifest_path.clone(),
+                name.to_owned(),
             ))
         }
-        PackageSelector::ByPath(path) => {
-            let path = canonicalize(path)?;
-
-            // Find the closest member based on the given path
-            Ok(path
-                .ancestors()
-                // Move manifest out of the HashMap
-                .find_map(|dir| all_members.remove(dir))
-                .unwrap_or_else(|| {
-                    (
-                        workspace_manifest_path.to_owned(),
-                        workspace_manifest.clone(),
-                    )
-                }))
+        // Otherwise use the manifest we just found, as long as it contains `[package]`
+        None => {
+            if potential_manifest.package.is_none() {
+                return Err(Error::NoPackageInManifest(potential_manifest_path));
+            }
+            Ok((potential_manifest_path, potential_manifest))
         }
     }
 }
 
 /// Recursively walk up the directories until finding a `Cargo.toml`
-///
-/// When a workspace has been detected, use [`find_package_manifest_in_workspace()`] to find packages
-/// instead (that are members of the given workspace).
-pub fn find_package_manifest(path: &Path, name: Option<&str>) -> Result<(PathBuf, Manifest)> {
+pub fn find_manifest(path: &Path) -> Result<(PathBuf, Manifest)> {
     let path = canonicalize(path)?;
     let manifest_path = path
         .ancestors()
@@ -129,28 +100,13 @@ pub fn find_package_manifest(path: &Path, name: Option<&str>) -> Result<(PathBuf
 
     let manifest = Manifest::parse_from_toml(&manifest_path)?;
 
-    // This function shouldn't be called when a workspace exists.
-    if manifest.workspace.is_some() {
-        return Err(Error::UnexpectedWorkspace(manifest_path));
-    }
-
-    if let Some(package) = &manifest.package {
-        if let Some(name) = name {
-            if package.name == name {
-                Ok((manifest_path, manifest))
-            } else {
-                Err(Error::PackageNotFound(manifest_path, name.into()))
-            }
-        } else {
-            Ok((manifest_path, manifest))
-        }
-    } else {
-        Err(Error::NoPackageInManifest(manifest_path))
-    }
+    Ok((manifest_path, manifest))
 }
 
-/// Find the first `Cargo.toml` that contains a `[workspace]`
+/// Recursively walk up the directories until finding a `Cargo.toml`
+/// that contains a `[workspace]`
 pub fn find_workspace(potential_root: &Path) -> Result<Option<(PathBuf, Manifest)>> {
+    let potential_root = canonicalize(potential_root)?;
     for manifest_path in potential_root
         .ancestors()
         .map(|dir| dir.join("Cargo.toml"))

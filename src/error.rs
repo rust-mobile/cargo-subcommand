@@ -16,6 +16,10 @@ pub enum Error {
     UnexpectedWorkspace(PathBuf),
     NoPackageInManifest(PathBuf),
     PackageNotFound(PathBuf, String),
+    ManifestNotInWorkspace {
+        manifest: PathBuf,
+        workspace_manifest: PathBuf,
+    },
     Io(PathBuf, IoError),
     Toml(PathBuf, TomlError),
 }
@@ -52,6 +56,22 @@ impl Display for Error {
                     workspace.display()
                 )
             }
+            Self::ManifestNotInWorkspace {
+                manifest,
+                workspace_manifest,
+            } => {
+                return write!(f, "current package believes it's in a workspace when it's not:
+current:   {}
+workspace: {workspace_manifest_path}
+
+this may be fixable by adding `{package_subpath}` to the `workspace.members` array of the manifest located at: {workspace_manifest_path}
+Alternatively, to keep it out of the workspace, add an empty `[workspace]` table to the package's manifest.",
+                    // TODO: Parse workspace.exclude and add back "add the package to the `workspace.exclude` array, or"
+                    manifest.display(),
+                    package_subpath = manifest.parent().unwrap().strip_prefix(workspace_manifest.parent().unwrap()).unwrap().display(),
+                    workspace_manifest_path = workspace_manifest.display(),
+                )
+            },
             Self::Io(path, error) => return write!(f, "{}: {}", path.display(), error),
             Self::Toml(file, error) => return write!(f, "{}: {}", file.display(), error),
         })
