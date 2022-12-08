@@ -15,7 +15,7 @@ pub struct Args {
     #[cfg_attr(feature = "clap", clap(long, short))]
     pub package: Vec<String>,
     /// Build all packages in the workspace
-    #[cfg_attr(feature = "clap", clap(long))]
+    #[cfg_attr(feature = "clap", clap(long, visible_alias = "all"))]
     pub workspace: bool,
     /// Exclude packages from the build
     #[cfg_attr(feature = "clap", clap(long))]
@@ -38,13 +38,13 @@ pub struct Args {
     pub examples: bool,
 
     /// Build artifacts in release mode, with optimizations
-    #[cfg_attr(feature = "clap", clap(long))]
+    #[cfg_attr(feature = "clap", clap(long, short))]
     pub release: bool,
     /// Build artifacts with the specified profile
     #[cfg_attr(feature = "clap", clap(long, conflicts_with = "release"))]
     pub profile: Option<Profile>,
     /// Space or comma separated list of features to activate
-    #[cfg_attr(feature = "clap", clap(long))]
+    #[cfg_attr(feature = "clap", clap(long, short = 'F'))]
     pub features: Vec<String>,
     /// Activate all available features
     #[cfg_attr(feature = "clap", clap(long))]
