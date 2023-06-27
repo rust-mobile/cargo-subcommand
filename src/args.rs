@@ -130,4 +130,13 @@ impl Args {
             Profile::Dev
         }
     }
+
+    /// Returns [`true`] when one or more target selection options are active.
+    /// This is generally used to deduce whether to default to binary and
+    /// library targets, in accordance with [`cargo build`].
+    ///
+    /// [`cargo build`]: https://doc.rust-lang.org/cargo/commands/cargo-build.html#target-selection
+    pub fn specific_target_selected(&self) -> bool {
+        self.lib || self.bins || self.examples || !self.bin.is_empty() || !self.example.is_empty()
+    }
 }

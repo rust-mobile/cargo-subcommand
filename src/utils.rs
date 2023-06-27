@@ -4,15 +4,14 @@ use crate::manifest::Manifest;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-pub fn list_rust_files(dir: &Path) -> Result<Vec<String>> {
-    let mut files = Vec::new();
+pub fn list_rust_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = vec![];
     if dir.exists() && dir.is_dir() {
         let entries = std::fs::read_dir(dir).map_err(|e| Error::Io(dir.to_owned(), e))?;
         for entry in entries {
             let path = entry.map_err(|e| Error::Io(dir.to_owned(), e))?.path();
             if path.is_file() && path.extension() == Some(OsStr::new("rs")) {
-                let name = path.file_stem().unwrap().to_str().unwrap();
-                files.push(name.to_string());
+                files.push(path);
             }
         }
     }
