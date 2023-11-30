@@ -1,5 +1,11 @@
 # `cargo-subcommand` library for building subcommands
 
+[![Actions Status](https://github.com/rust-mobile/cargo-subcommand/actions/workflows/rust.yaml/badge.svg)](https://github.com/rust-mobile/cargo-subcommand/actions)
+[![Latest version](https://img.shields.io/crates/v/cargo-subcommand.svg?logo=rust)](https://crates.io/crates/cargo-subcommand)
+[![Documentation](https://docs.rs/cargo-subcommand/badge.svg)](https://docs.rs/cargo-subcommand)
+[![Lines of code](https://tokei.rs/b1/github/rust-mobile/cargo-subcommand)](https://github.com/rust-mobile/cargo-subcommand)
+![ISC](https://img.shields.io/badge/License-ISC-green.svg)
+
 Is used by [`cargo-apk`](https://crates.io/crates/cargo-apk) and `cargo-flutter`.
 
 # License
