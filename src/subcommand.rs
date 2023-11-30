@@ -158,7 +158,7 @@ impl Subcommand {
                 .path
                 .clone()
                 .or_else(|| find_main_file(&root_dir.join("examples"), &example.name))
-                .ok_or_else(|| Error::BinNotFound(example.name.clone()))?;
+                .ok_or_else(|| Error::ExampleNotFound(example.name.clone()))?;
 
             let prev = example_artifacts.insert(
                 example.name.clone(),

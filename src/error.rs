@@ -23,6 +23,7 @@ pub enum Error {
     Io(PathBuf, IoError),
     Toml(PathBuf, TomlError),
     BinNotFound(String),
+    ExampleNotFound(String),
     DuplicateBin(String),
     DuplicateExample(String),
 }
@@ -78,6 +79,7 @@ Alternatively, to keep it out of the workspace, add an empty `[workspace]` table
             Self::Io(path, error) => return write!(f, "{}: {}", path.display(), error),
             Self::Toml(file, error) => return write!(f, "{}: {}", file.display(), error),
             Self::BinNotFound(name) => return write!(f, "Can't find `{name}` bin at `src/bin/{name}.rs` or `src/bin/{name}/main.rs`. Please specify bin.path if you want to use a non-default path.", name = name),
+            Self::ExampleNotFound(name) => return write!(f, "Can't find `{name}` example at `examples/{name}.rs` or `examples/{name}/main.rs`. Please specify examples.path if you want to use a non-default path.", name = name),
             Self::DuplicateBin(name) => return write!(f, "found duplicate binary name {name}, but all binary targets must have a unique name"),
             Self::DuplicateExample(name) => return write!(f, "found duplicate example name {name}, but all example targets must have a unique name"),
         })
