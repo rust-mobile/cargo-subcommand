@@ -36,8 +36,16 @@ impl Manifest {
         let mut all_members = HashMap::new();
 
         for member in &workspace.members {
+            // XXX: Cargo would fail if the glob yielded no file results.  But it allows cases where
+            // the only results are non-directories, including non-glob *file* paths in `members`...
             for manifest_dir in glob::glob(workspace_root.join(member).to_str().unwrap())? {
                 let manifest_dir = manifest_dir?;
+                if !dunce::canonicalize(&manifest_dir)
+                    .map_err(|e| Error::Io(manifest_dir.clone(), e))?
+                    .is_dir()
+                {
+                    continue;
+                }
                 let manifest_path = manifest_dir.join("Cargo.toml");
                 let manifest = Manifest::parse_from_toml(&manifest_path)?;
 
