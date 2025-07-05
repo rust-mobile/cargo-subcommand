@@ -4,5 +4,5 @@ use clap::Parser;
 fn main() {
     let args = Args::parse();
     let cmd = Subcommand::new(args).unwrap();
-    println!("{:#?}", cmd);
+    println!("{cmd:#?}");
 }

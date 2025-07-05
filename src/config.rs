@@ -91,7 +91,7 @@ impl LocalizedConfig {
         workspace: impl AsRef<Path>,
     ) -> Result<Option<Self>, Error> {
         let config = Self::find_cargo_config_parent(workspace)?;
-        config.map(LocalizedConfig::new).transpose()
+        config.map(Self::new).transpose()
     }
 
     /// Propagate environment variables from this `.cargo/config.toml` to the process environment

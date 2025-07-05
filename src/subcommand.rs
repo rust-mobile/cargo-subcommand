@@ -30,7 +30,7 @@ impl Subcommand {
             args.package.len() < 2,
             "Multiple packages are not supported yet by `cargo-subcommand`"
         );
-        let package = args.package.get(0).map(|s| s.as_str());
+        let package = args.package.first().map(|s| s.as_str());
         assert!(
             !args.workspace,
             "`--workspace` is not supported yet by `cargo-subcommand`"
@@ -124,7 +124,7 @@ impl Subcommand {
         let mut example_artifacts = HashMap::new();
 
         fn find_main_file(dir: &Path, name: &str) -> Option<PathBuf> {
-            let alt_path = dir.join(format!("{}.rs", name));
+            let alt_path = dir.join(format!("{name}.rs"));
             alt_path.is_file().then_some(alt_path).or_else(|| {
                 let alt_path = dir.join(name).join("main.rs");
                 alt_path.is_file().then_some(alt_path)
@@ -198,11 +198,7 @@ impl Subcommand {
         }
 
         // Parse all autobins
-        if parsed_manifest
-            .package
-            .as_ref()
-            .map_or(true, |p| p.autobins)
-        {
+        if parsed_manifest.package.as_ref().is_none_or(|p| p.autobins) {
             // Special-case for the main binary of a package
             if root_dir.join(main_bin_path).is_file() {
                 insert_if_unconfigured(
@@ -224,7 +220,7 @@ impl Subcommand {
         if parsed_manifest
             .package
             .as_ref()
-            .map_or(true, |p| p.autoexamples)
+            .is_none_or(|p| p.autoexamples)
         {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
                 let file = file.strip_prefix(root_dir).unwrap();
