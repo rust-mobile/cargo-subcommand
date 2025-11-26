@@ -1,7 +1,6 @@
 use crate::args::Args;
 use crate::artifact::{Artifact, ArtifactType};
 use crate::error::{Error, Result};
-use crate::manifest::Manifest;
 use crate::profile::Profile;
 use crate::{utils, CrateType, LocalizedConfig};
 use std::collections::HashMap;
@@ -87,8 +86,6 @@ impl Subcommand {
             config.set_env_vars().unwrap();
         }
 
-        let parsed_manifest = Manifest::parse_from_toml(&manifest_path)?;
-
         let target_dir = args
             .target_dir
             .clone()
@@ -132,7 +129,7 @@ impl Subcommand {
         }
 
         // Add all explicitly configured binaries
-        for bin in &parsed_manifest.bins {
+        for bin in &manifest.bins {
             let path = bin
                 .path
                 .clone()
@@ -153,7 +150,7 @@ impl Subcommand {
         }
 
         // Add all explicitly configured examples
-        for example in &parsed_manifest.examples {
+        for example in &manifest.examples {
             let path = example
                 .path
                 .clone()
@@ -198,7 +195,7 @@ impl Subcommand {
         }
 
         // Parse all autobins
-        if parsed_manifest.package.as_ref().is_none_or(|p| p.autobins) {
+        if manifest.package.as_ref().is_none_or(|p| p.autobins) {
             // Special-case for the main binary of a package
             if root_dir.join(main_bin_path).is_file() {
                 insert_if_unconfigured(
@@ -217,11 +214,7 @@ impl Subcommand {
         }
 
         // Parse all autoexamples
-        if parsed_manifest
-            .package
-            .as_ref()
-            .is_none_or(|p| p.autoexamples)
-        {
+        if manifest.package.as_ref().is_none_or(|p| p.autoexamples) {
             for file in utils::list_rust_files(&root_dir.join("examples"))? {
                 let file = file.strip_prefix(root_dir).unwrap();
 
@@ -229,7 +222,7 @@ impl Subcommand {
             }
         }
 
-        let mut lib_artifact = parsed_manifest
+        let mut lib_artifact = manifest
             .lib
             .as_ref()
             .map(|lib| Artifact {
