@@ -80,6 +80,27 @@ pub fn find_package_manifest_in_workspace(
         }
         // Otherwise use the manifest we just found, as long as it contains `[package]`
         None => {
+            // TODO: If the user didn't specify a package, but specified a specific bin/test/example target,
+            // it should be found in the available workspace members instead
+
+            // If there was a default member (or members), try getting that instead
+            if let Some(ws) = &workspace_manifest.workspace {
+                // >1 only works for build, not for run
+                if let [single_member] = ws.default_members.as_slice() {
+                    // TODO: Could be glob
+                    let path = workspace_manifest_dir.join(single_member);
+                    let m = workspace_members
+                        .get(&path)
+                        // TODO: Unwrap here already
+                        .filter(|(_p, m)| m.package.is_some())
+                        .ok_or(
+                            // TODO: append /Cargo.toml
+                            Error::NoPackageInManifest(path),
+                        )?;
+                    return Ok(m.clone());
+                }
+            }
+
             if potential_manifest.package.is_none() {
                 return Err(Error::NoPackageInManifest(potential_manifest_path));
             }
